@@ -141,6 +141,7 @@ function frac1Back(){
 
 document.getElementById('frac1-next-btn').addEventListener('click', frac1Advance);
 document.getElementById('frac1-prev-btn').addEventListener('click', frac1Back);
+document.getElementById('frac1-reset-progress-btn').addEventListener('click', initFrac1);
 
 /* ============ Game: compare fractions ============ */
 // Same manual-advance + full-history pattern as above.
@@ -194,22 +195,36 @@ function frac2GenerateRound(){
 function frac2Render(snap, interactive){
   const row = document.getElementById('frac2-row');
   row.innerHTML =
-    '<button class="frac-compare-card" id="frac2-left">' + fracRenderStacked(snap.left.n, snap.left.d, { size: 40, color: '#4C6FFF' }) + '</button>' +
-    '<button class="frac-compare-eq-btn" id="frac2-eq">=</button>' +
-    '<button class="frac-compare-card" id="frac2-right">' + fracRenderStacked(snap.right.n, snap.right.d, { size: 40, color: '#9B5DE5' }) + '</button>';
+    '<div class="frac-compare-card">' + fracRenderStacked(snap.left.n, snap.left.d, { size: 40, color: '#4C6FFF' }) + '</div>' +
+    '<div class="frac-compare-buttons">' +
+      '<button class="frac-compare-op-btn" data-op="gt">&gt;</button>' +
+      '<button class="frac-compare-op-btn" data-op="eq">=</button>' +
+      '<button class="frac-compare-op-btn" data-op="lt">&lt;</button>' +
+    '</div>' +
+    '<div class="frac-compare-card">' + fracRenderStacked(snap.right.n, snap.right.d, { size: 40, color: '#9B5DE5' }) + '</div>';
 
-  const leftBtn = document.getElementById('frac2-left');
-  const rightBtn = document.getElementById('frac2-right');
-  const eqBtn = document.getElementById('frac2-eq');
+  const gtBtn = row.querySelector('[data-op="gt"]');
+  const eqBtn = row.querySelector('[data-op="eq"]');
+  const ltBtn = row.querySelector('[data-op="lt"]');
 
-  if (interactive){
-    leftBtn.addEventListener('click', () => handleFrac2Answer(snap.cmp === 1, leftBtn, snap));
-    rightBtn.addEventListener('click', () => handleFrac2Answer(snap.cmp === -1, rightBtn, snap));
-    eqBtn.addEventListener('click', () => handleFrac2Answer(snap.cmp === 0, eqBtn, snap));
-  } else {
-    const correctBtn = snap.cmp === 1 ? leftBtn : (snap.cmp === -1 ? rightBtn : eqBtn);
-    correctBtn.classList.add('correct');
-  }
+  // The DOM order here is [snap.left card, operator buttons, snap.right card].
+  // Under this app's RTL layout the FIRST dom child renders RIGHTMOST and the
+  // LAST renders LEFTMOST (confirmed elsewhere in this app) - so the card
+  // positioned visually on the LEFT is actually snap.right, and the one
+  // visually on the RIGHT is snap.left. The intended convention: if the
+  // LEFT-shown fraction is bigger, "<" is correct; if the RIGHT-shown
+  // fraction is bigger, ">" is correct.
+  const screenCmp = fracCompare(snap.right.n, snap.right.d, snap.left.n, snap.left.d); // screen-left vs screen-right
+  const correctOp = screenCmp === 0 ? 'eq' : (screenCmp === 1 ? 'lt' : 'gt');
+
+  [gtBtn, eqBtn, ltBtn].forEach(btn => {
+    const isCorrect = btn.dataset.op === correctOp;
+    if (interactive){
+      btn.addEventListener('click', () => handleFrac2Answer(isCorrect, btn, snap));
+    } else if (isCorrect){
+      btn.classList.add('correct');
+    }
+  });
   updateFracNavButtons('frac2', frac2History, frac2Pos);
 }
 
@@ -260,6 +275,7 @@ function frac2Back(){
 
 document.getElementById('frac2-next-btn').addEventListener('click', frac2Advance);
 document.getElementById('frac2-prev-btn').addEventListener('click', frac2Back);
+document.getElementById('frac2-reset-progress-btn').addEventListener('click', initFrac2);
 
 /* ============ Game: ascending order ============ */
 // Same manual-advance + full-history pattern. A round here involves several
@@ -377,6 +393,7 @@ function frac3Back(){
 
 document.getElementById('frac3-next-btn').addEventListener('click', frac3Advance);
 document.getElementById('frac3-prev-btn').addEventListener('click', frac3Back);
+document.getElementById('frac3-reset-progress-btn').addEventListener('click', initFrac3);
 
 /* ============ Game: equivalent-fractions memory match ============ */
 // Leveling game: clearing a board shows a "next level" button (never jumps
@@ -487,6 +504,7 @@ function frac4AdvanceLevel(){
 }
 
 document.getElementById('frac4-next-level-btn').addEventListener('click', frac4AdvanceLevel);
+document.getElementById('frac4-reset-progress-btn').addEventListener('click', initFrac4);
 
 /* ============ Game: simplify fractions ============ */
 // Same manual-advance + full-history pattern as frac1/2/3.
@@ -616,6 +634,7 @@ function frac5Back(){
 
 document.getElementById('frac5-next-btn').addEventListener('click', frac5Advance);
 document.getElementById('frac5-prev-btn').addEventListener('click', frac5Back);
+document.getElementById('frac5-reset-progress-btn').addEventListener('click', initFrac5);
 
 /* ============ Shared: picture <-> fraction round generation ============ */
 // Used by BOTH frac6 (picture is the prompt, options are fractions... wait,
@@ -799,6 +818,7 @@ function frac6Back(){
 
 document.getElementById('frac6-next-btn').addEventListener('click', frac6Advance);
 document.getElementById('frac6-prev-btn').addEventListener('click', frac6Back);
+document.getElementById('frac6-reset-progress-btn').addEventListener('click', initFrac6);
 
 /* ============ Game: pick the matching fraction ============ */
 // The inverse of frac6: a PICTURE is the prompt, and the 4 candidate
@@ -891,3 +911,4 @@ function frac7Back(){
 
 document.getElementById('frac7-next-btn').addEventListener('click', frac7Advance);
 document.getElementById('frac7-prev-btn').addEventListener('click', frac7Back);
+document.getElementById('frac7-reset-progress-btn').addEventListener('click', initFrac7);
