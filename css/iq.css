@@ -1,0 +1,183 @@
+/* ---------- IQ level / streak bar ---------- */
+.iq-level-wrap{
+  width:100%;
+  max-width:420px;
+  text-align:center;
+}
+.iq-level-label{
+  font-weight:600;
+  margin-bottom:6px;
+  font-size:14px;
+  opacity:0.8;
+}
+.iq-reset-progress-btn{
+  margin-top:8px;
+  border:none;
+  background:none;
+  cursor:pointer;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink);
+  opacity:0.55;
+  text-decoration:underline;
+  padding:4px;
+  transition:opacity 0.15s ease;
+}
+.iq-reset-progress-btn:hover{ opacity:0.9; }
+
+/* ---------- Prompt area (sequence tiles / analogy row / matrix grid) ---------- */
+/* The prompt (the given sequence/puzzle) sits inside one dashed "display panel" -
+   a single visually distinct zone - with NO individual boxes around its items.
+   The options below are the exact opposite: solid white, individually boxed,
+   bold blue border, raised shadow, hover-lift. The two must never be confusable:
+   one is "what you're given", the other is "what you click". */
+.iq-prompt{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  width:100%;
+}
+.iq-prompt-label, .iq-options-label{
+  font-size:14px;
+  font-weight:700;
+  color:var(--ink);
+  opacity:0.65;
+}
+.iq-prompt-text{
+  font-size:20px;
+  font-weight:700;
+  color:var(--ink);
+  text-align:center;
+}
+
+.iq-sequence-row, .iq-analogy-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+  background:rgba(58,51,82,0.05);
+  border:3px dashed rgba(58,51,82,0.25);
+  border-radius:var(--radius-lg);
+  padding:16px 20px;
+}
+
+.iq-tile{
+  width:78px;
+  height:78px;
+  min-width:78px;
+  background:none;
+  border:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:30px;
+  font-weight:700;
+  color:var(--ink);
+}
+.iq-tile-shape{ padding:6px; }
+.iq-tile-shape svg{ width:100%; height:100%; }
+.iq-tile-blank{
+  background:rgba(255,255,255,0.6);
+  border:3px dashed var(--purple);
+  border-radius:var(--radius-md);
+  color:var(--purple-dark);
+  font-size:34px;
+}
+
+.iq-arrow{
+  font-size:26px;
+  color:var(--ink);
+  opacity:0.6;
+}
+.iq-analogy-sep{
+  font-size:22px;
+  font-weight:700;
+  color:var(--ink);
+  opacity:0.5;
+  margin:0 4px;
+}
+
+.iq-matrix-grid{
+  display:grid;
+  gap:10px;
+  width:fit-content;
+  background:rgba(58,51,82,0.05);
+  padding:16px;
+  border-radius:var(--radius-lg);
+  border:3px dashed rgba(58,51,82,0.25);
+}
+.iq-matrix-cell{ width:78px; height:78px; background:none; }
+
+/* ---------- Options: raised, bold-bordered, clearly clickable cards ---------- */
+.iq-options-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+.iq-options{
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  justify-content:center;
+  max-width:520px;
+}
+.iq-option-btn{
+  width:84px;
+  height:84px;
+  min-width:84px;
+  border:3px solid var(--blue);
+  border-radius:var(--radius-md);
+  background:#fff;
+  box-shadow:0 6px 14px rgba(76,111,255,0.25);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px;
+  cursor:pointer;
+  transition:transform 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+}
+.iq-option-btn svg{ width:100%; height:100%; }
+.iq-option-btn.iq-option-text{
+  font-family:inherit;
+  font-size:28px;
+  font-weight:700;
+  color:var(--ink);
+}
+.iq-option-btn:hover{ transform:translateY(-3px) scale(1.04); filter:brightness(1.04); }
+.iq-option-btn:active{ transform:translateY(0); }
+.iq-option-btn.correct{ background:var(--green); border-color:var(--green-dark); color:#fff; box-shadow:0 6px 14px rgba(6,214,160,0.35); }
+.iq-option-btn.incorrect{ background:var(--red); border-color:var(--red-dark); color:#fff; animation:shake 0.35s ease; }
+
+/* ---------- Explanation (shown under the options once answered correctly) ---------- */
+.iq-explanation{
+  max-width:460px;
+  min-height:1px;
+  text-align:center;
+  font-size:15px;
+  font-weight:600;
+  color:var(--green-dark);
+  background:rgba(6,214,160,0.12);
+  border-radius:var(--radius-md);
+  padding:0;
+  transition:padding 0.15s ease;
+}
+.iq-explanation:not(:empty){
+  padding:10px 16px;
+}
+
+.iq-next-btn{
+  background:linear-gradient(160deg,var(--green),var(--green-dark));
+  font-size:17px;
+  padding:12px 26px;
+  animation:pulse 1.2s ease-in-out infinite;
+}
+
+@media (max-width:600px){
+  .iq-tile, .iq-matrix-cell, .iq-option-btn{ width:60px; height:60px; min-width:60px; font-size:22px; }
+  .iq-tile-blank{ font-size:26px; }
+  .iq-option-btn.iq-option-text{ font-size:20px; }
+}

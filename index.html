@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>מספרים וחשיבה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/multiplication.css">
+<link rel="stylesheet" href="css/iq.css">
+<link rel="stylesheet" href="css/fractions.css">
+</head>
+<body>
+<div id="app">
+  <header class="app-header">
+    <h1>🔢 מספרים וחשיבה 🧠</h1>
+    <div class="subtitle">תרגול כפל, אימוני חשיבה ושברים</div>
+  </header>
+
+  <main id="main-menu" class="menu-screen">
+    <div class="menu-grid menu-grid-hero">
+      <button class="menu-btn hero-mult" data-nav="mult-menu">
+        <span class="emoji">🔢</span>
+        <span>לוח הכפל</span>
+        <span class="label-sub">שישה משחקי תרגול</span>
+      </button>
+      <button class="menu-btn hero-iq" data-nav="iq-menu">
+        <span class="emoji">🧠</span>
+        <span>אימוני חשיבה (IQ)</span>
+        <span class="label-sub">סדרות, צורות והיגיון</span>
+      </button>
+      <button class="menu-btn hero-frac" data-nav="frac-menu">
+        <span class="emoji">🍕</span>
+        <span>שברים</span>
+        <span class="label-sub">שבעה משחקי שברים</span>
+      </button>
+    </div>
+  </main>
+
+  <main id="mult-menu" class="menu-screen hidden">
+    <div class="activity-topbar" style="max-width:900px;">
+      <button class="btn back" data-back="main">⬅ חזרה לתפריט הראשי</button>
+      <span class="activity-title">🔢 לוח הכפל</span>
+      <span style="width:120px"></span>
+    </div>
+    <div class="menu-grid">
+      <button class="menu-btn m1" data-nav="1">
+        <span class="emoji">📖</span>
+        <span>לוח הכפל המלא</span>
+        <span class="label-sub">להסתכל וללמוד</span>
+      </button>
+      <button class="menu-btn m2" data-nav="2">
+        <span class="emoji">✏️</span>
+        <span>מלא את המשבצות</span>
+        <span class="label-sub">לתרגל ולהשלים</span>
+      </button>
+      <button class="menu-btn m3" data-nav="3">
+        <span class="emoji">🎯</span>
+        <span>גרור את המספר למקום</span>
+        <span class="label-sub">משחק גרירה</span>
+      </button>
+      <button class="menu-btn m4" data-nav="4">
+        <span class="emoji">🧩</span>
+        <span>השלימו את הלוח החלקי</span>
+        <span class="label-sub">לוח חדש בכל פעם</span>
+      </button>
+      <button class="menu-btn m5" data-nav="5">
+        <span class="emoji">🔦</span>
+        <span>עקבו אחרי המשבצת המודגשת</span>
+        <span class="label-sub">משבצת אחת בכל פעם</span>
+      </button>
+      <button class="menu-btn m6" data-nav="6">
+        <span class="emoji">🧠</span>
+        <span>בחרו את המספר הנכון</span>
+        <span class="label-sub">לוח חדש כל כמה שאלות</span>
+      </button>
+    </div>
+  </main>
+
+  <main id="iq-menu" class="menu-screen hidden">
+    <div class="activity-topbar" style="max-width:900px;">
+      <button class="btn back" data-back="main">⬅ חזרה לתפריט הראשי</button>
+      <span class="activity-title">🧠 אימוני חשיבה</span>
+      <span style="width:120px"></span>
+    </div>
+    <div class="menu-grid" id="iq-menu-grid"></div>
+  </main>
+
+  <main id="frac-menu" class="menu-screen hidden">
+    <div class="activity-topbar" style="max-width:900px;">
+      <button class="btn back" data-back="main">⬅ חזרה לתפריט הראשי</button>
+      <span class="activity-title">🍕 שברים</span>
+      <span style="width:120px"></span>
+    </div>
+    <div class="menu-grid">
+      <button class="menu-btn m1" data-nav="frac1">
+        <span class="emoji">📍</span>
+        <span>ציר המספרים</span>
+        <span class="label-sub">מקמו את השבר על הציר</span>
+      </button>
+      <button class="menu-btn m2" data-nav="frac2">
+        <span class="emoji">⚖️</span>
+        <span>איזה שבר גדול יותר?</span>
+        <span class="label-sub">השוואת שברים</span>
+      </button>
+      <button class="menu-btn m3" data-nav="frac3">
+        <span class="emoji">📶</span>
+        <span>סדר עולה</span>
+        <span class="label-sub">מהקטן לגדול</span>
+      </button>
+      <button class="menu-btn m4" data-nav="frac4">
+        <span class="emoji">🧠</span>
+        <span>זיכרון שברים שווי ערך</span>
+        <span class="label-sub">מצאו את הזוגות</span>
+      </button>
+      <button class="menu-btn m5" data-nav="frac5">
+        <span class="emoji">✂️</span>
+        <span>צמצום שברים</span>
+        <span class="label-sub">מצאו את הצורה הפשוטה</span>
+      </button>
+      <button class="menu-btn m6" data-nav="frac6">
+        <span class="emoji">🖼️</span>
+        <span>בחרו את התמונה המתאימה</span>
+        <span class="label-sub">פיצה, מלבן, רשת או כוס</span>
+      </button>
+      <button class="menu-btn m7" data-nav="frac7">
+        <span class="emoji">🔢</span>
+        <span>בחרו את השבר המתאים</span>
+        <span class="label-sub">מהתמונה לשבר</span>
+      </button>
+    </div>
+  </main>
+
+  <section id="activity1" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">📖 לוח הכפל המלא</span>
+      <div class="a1-legend">
+        <span>קטן</span>
+        <span class="a1-legend-bar" id="a1-legend-bar"></span>
+        <span>גדול</span>
+      </div>
+    </div>
+    <div class="table-wrap"><div id="a1-table-holder"></div></div>
+  </section>
+
+  <section id="activity2" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">✏️ מלא את המשבצות</span>
+      <button class="btn reset" data-reset="2">🔄 התחלה מחדש</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="a2-progress-text">0 / 100</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="a2-progress-fill"></div></div>
+    </div>
+    <div class="table-wrap"><div id="a2-table-holder"></div></div>
+  </section>
+
+  <section id="activity3" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🎯 גרור את המספר למקום</span>
+      <button class="btn reset" data-reset="3">🔄 התחלה מחדש</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="a3-progress-text">0 / 100</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="a3-progress-fill"></div></div>
+    </div>
+    <div class="a3-layout">
+      <div class="a3-sidebar">
+        <div class="a3-sidebar-label">גררו את המספר לתא המתאים:</div>
+        <div class="drag-chip pulse" id="a3-chip">?</div>
+      </div>
+      <div class="table-wrap" style="padding:0;"><div id="a3-table-holder"></div></div>
+    </div>
+  </section>
+
+  <section id="activity4" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🧩 השלימו את הלוח החלקי</span>
+      <button class="btn reset" data-reset="4">🔄 התחלה מחדש</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="a4-round-label">לוח מספר <span id="a4-round-number">1</span></div>
+      <div class="progress-label"><span id="a4-progress-text">0 / 0</span> הושלמו בלוח הנוכחי</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="a4-progress-fill"></div></div>
+    </div>
+    <div class="a3-layout">
+      <div class="a3-sidebar">
+        <div class="a3-sidebar-label">גררו את המספר לתא המתאים:</div>
+        <div class="drag-chip pulse" id="a4-chip">?</div>
+      </div>
+      <div class="table-wrap" style="padding:0;"><div id="a4-table-holder"></div></div>
+    </div>
+  </section>
+
+  <section id="activity5" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🔦 עקבו אחרי המשבצת המודגשת</span>
+      <button class="btn reset" data-reset="5">🔄 התחלה מחדש</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="a5-progress-text">0 / 100</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="a5-progress-fill"></div></div>
+    </div>
+    <div class="table-wrap"><div id="a5-table-holder"></div></div>
+  </section>
+
+  <section id="activity6" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="mult-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🧠 בחרו את המספר הנכון</span>
+      <button class="btn reset" data-reset="6">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a6-round-label">שאלה <span id="a6-round-current">1</span> מתוך <span id="a6-round-total">?</span> בלוח הזה</div>
+    <div class="a6-options" id="a6-options"></div>
+    <div class="table-wrap"><div id="a6-table-holder"></div></div>
+  </section>
+
+  <section id="frac1" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">📍 ציר המספרים</span>
+      <button class="btn reset" data-reset="frac1">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac1-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac1-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac1-progress-fill"></div></div>
+    </div>
+    <div class="frac-prompt" id="frac1-prompt"></div>
+    <div class="frac-numline-wrap" id="frac1-line"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac1-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac1-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac1-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <section id="frac2" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">⚖️ איזה שבר גדול יותר?</span>
+      <button class="btn reset" data-reset="frac2">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac2-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac2-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac2-progress-fill"></div></div>
+    </div>
+    <div class="frac-compare-row" id="frac2-row"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac2-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac2-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac2-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <section id="frac3" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">📶 סדר עולה</span>
+      <button class="btn reset" data-reset="frac3">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac3-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac3-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac3-progress-fill"></div></div>
+    </div>
+    <div class="frac-prompt-label">לחצו על השברים מהקטן לגדול:</div>
+    <div class="frac-order-row" id="frac3-row"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac3-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac3-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac3-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <section id="frac4" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🧠 זיכרון שברים שווי ערך</span>
+      <button class="btn reset" data-reset="frac4">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac4-level-num">1</span></div>
+    <div class="progress-label" id="frac4-progress-text">0 / 6 זוגות</div>
+    <div class="frac-memory-grid" id="frac4-grid"></div>
+    <button class="btn iq-next-btn hidden" id="frac4-next-level-btn">לשלב הבא ⬅️</button>
+  </section>
+
+  <section id="frac5" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">✂️ צמצום שברים</span>
+      <button class="btn reset" data-reset="frac5">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac5-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac5-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac5-progress-fill"></div></div>
+    </div>
+    <div class="frac-prompt" id="frac5-prompt"></div>
+    <div class="a6-options" id="frac5-options"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac5-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac5-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac5-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <section id="frac6" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🖼️ בחרו את התמונה המתאימה</span>
+      <button class="btn reset" data-reset="frac6">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac6-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac6-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac6-progress-fill"></div></div>
+    </div>
+    <div class="frac-prompt" id="frac6-prompt"></div>
+    <div class="frac-picture-options" id="frac6-options"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac6-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac6-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac6-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <section id="frac7" class="activity-screen hidden">
+    <div class="activity-topbar">
+      <button class="btn back" data-back="frac-menu">⬅ חזרה לתפריט</button>
+      <span class="activity-title">🔢 בחרו את השבר המתאים</span>
+      <button class="btn reset" data-reset="frac7">🔄 התחלה מחדש</button>
+    </div>
+    <div class="a4-round-label">רמה <span id="frac7-level-num">1</span></div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="frac7-progress-text">0 / 10</span> הושלמו</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="frac7-progress-fill"></div></div>
+    </div>
+    <div class="frac-prompt" id="frac7-prompt"></div>
+    <div class="a6-options" id="frac7-options"></div>
+    <div class="frac-nav-row">
+      <button class="btn back" id="frac7-prev-btn">➡ קודם</button>
+      <span class="frac-hist-label" id="frac7-hist-num">1 / 1</span>
+      <button class="btn iq-next-btn hidden" id="frac7-next-btn">הבא ⬅️</button>
+    </div>
+  </section>
+
+  <div id="iq-screens-root"></div>
+</div>
+
+<div id="confetti-layer"></div>
+
+<script src="js/core.js"></script>
+<script src="js/multiplication.js"></script>
+<script src="js/iq-shapes.js"></script>
+<script src="js/iq-core.js"></script>
+<script src="js/iq-sequences.js"></script>
+<script src="js/iq-visual.js"></script>
+<script src="js/fractions-shapes.js"></script>
+<script src="js/fractions-games.js"></script>
+<script>buildAllIQScreens();</script>
+</body>
+</html>
