@@ -338,22 +338,73 @@ registerIQCategory({
 // multiple "odd" shapes) can never reach the player.
 
 // ---- shared asymmetric "flag" shape (orientation rule) ----
-// A hexagonal L-shape with no rotational or reflective symmetry of its own -
-// verified by construction: rotating it 90/180/270 never reproduces the same
-// point set, and mirroring it never matches any of its own rotations either.
-const IQ_ODD_FLAG_BASE = [[-24,-24], [24,-24], [24,0], [0,0], [0,24], [-24,24]];
+// A hexagonal L-shape with NO symmetry of its own. An earlier version of this
+// shape (outer 48x48 square minus an exact 24x24 quarter-notch) looked
+// asymmetric but actually had a hidden DIAGONAL mirror axis - mirroring it
+// across the Y axis produced the exact same polygon (same vertices, opposite
+// winding) as rotating the original by 90 degrees, so the "mirror" option was
+// pixel-identical to one of the "rotation" options. This shape avoids that by
+// making the outer footprint and the notch both asymmetric (48x48 outer, but
+// a 22x20 notch offset from the corner) - verified below, by actual geometric
+// comparison against all 4 rotations and all 4 rotations of its mirror image,
+// not by assumption.
+const IQ_ODD_FLAG_BASE = [[-24,-24], [24,-24], [24,4], [2,4], [2,24], [-24,24]];
 
 function iqOddRotatePoints(pts, deg){
   const rad = deg * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
   return pts.map(([x,y]) => [x*cos - y*sin, x*sin + y*cos]);
 }
 function iqOddMirrorPoints(pts){ return pts.map(([x,y]) => [-x, y]); }
-function iqOddPointsMatch(a, b){
-  return a.every((p,i) => Math.abs(p[0]-b[i][0]) < 0.01 && Math.abs(p[1]-b[i][1]) < 0.01);
+// True polygon congruence IN PLACE: same vertex set, same cyclic adjacency,
+// allowing a different starting vertex and/or the opposite winding direction,
+// and tolerant of small floating-point drift. This is "do these literally draw
+// the same shape on screen", unlike a naive index-by-index comparison (which
+// is exactly what let the old bug slip through - two point lists can describe
+// the identical polygon while never matching at the same index).
+function iqOddPolygonsCongruent(a, b, tol){
+  tol = tol == null ? 0.05 : tol;
+  if (a.length !== b.length) return false;
+  const n = a.length;
+  const close = (p, q) => Math.abs(p[0]-q[0]) < tol && Math.abs(p[1]-q[1]) < tol;
+  for (const seq of [b, b.slice().reverse()]){
+    for (let shift = 0; shift < n; shift++){
+      let ok = true;
+      for (let i = 0; i < n; i++){ if (!close(a[i], seq[(i + shift) % n])){ ok = false; break; } }
+      if (ok) return true;
+    }
+  }
+  return false;
 }
+// Rotation-equivalence is checked explicitly against each of the 4 angles the
+// game actually uses - never inferred generically - so this only ever says
+// "yes" when pts truly matches one specific, known rotation of the base shape.
 function iqOddIsRotationOfBase(pts){
-  return [0,90,180,270].some(r => iqOddPointsMatch(pts, iqOddRotatePoints(IQ_ODD_FLAG_BASE, r)));
+  return [0,90,180,270].some(r => iqOddPolygonsCongruent(pts, iqOddRotatePoints(IQ_ODD_FLAG_BASE, r)));
 }
+// One-time proof (not re-run per question - this is a property of the BASE
+// SHAPE itself) that it is genuinely chiral: none of its own 4 rotations
+// coincide with each other, and none of them coincide with any of the 4
+// rotations of its mirror image either. If this shape is ever edited again,
+// this fails LOUDLY the moment the script loads, instead of silently shipping
+// ambiguous questions to players.
+(function iqOddAssertFlagBaseIsChiral(){
+  const rotations = [0,90,180,270].map(r => iqOddRotatePoints(IQ_ODD_FLAG_BASE, r));
+  for (let i = 0; i < rotations.length; i++){
+    for (let j = i+1; j < rotations.length; j++){
+      if (iqOddPolygonsCongruent(rotations[i], rotations[j])){
+        throw new Error('IQ_ODD_FLAG_BASE is not chiral: its own rotations ' + (i*90) + 'deg and ' + (j*90) + 'deg are visually identical.');
+      }
+    }
+  }
+  const mirrorRotations = [0,90,180,270].map(r => iqOddRotatePoints(iqOddMirrorPoints(IQ_ODD_FLAG_BASE), r));
+  for (let i = 0; i < rotations.length; i++){
+    for (let j = 0; j < mirrorRotations.length; j++){
+      if (iqOddPolygonsCongruent(rotations[i], mirrorRotations[j])){
+        throw new Error('IQ_ODD_FLAG_BASE is not chiral: rotation ' + (i*90) + 'deg matches mirror-rotation ' + (j*90) + 'deg.');
+      }
+    }
+  }
+})();
 function iqOddRenderPolygon(pts, color, strokeWidth, size){
   size = size || 100;
   const cx = size/2, cy = size/2, scale = size*0.42/24;
@@ -458,7 +509,21 @@ function iqOddVerifyExactlyOneOdd(result){
     : (it => iqOddRadiiSymmetric(it.radii));
   let failCount = 0, failIdx = -1;
   result.items.forEach((it, i) => { if (!checkFn(it)){ failCount++; failIdx = i; } });
-  return failCount === 1 && failIdx === result.oddIndex;
+  if (failCount !== 1 || failIdx !== result.oddIndex) return false;
+  if (result.family === 'orientation'){
+    // Defense in depth, specific to the orientation rule: also confirm every
+    // PAIR of the 4 displayed shapes is visually distinct from every other
+    // pair - not just "the odd one differs from the normals", but also "no
+    // two normals happen to coincide with each other" either. With a verified
+    // chiral base shape this should never trigger, but it's what would have
+    // caught the original bug even if iqOddIsRotationOfBase alone had missed it.
+    for (let i = 0; i < result.items.length; i++){
+      for (let j = i+1; j < result.items.length; j++){
+        if (iqOddPolygonsCongruent(result.items[i].pts, result.items[j].pts)) return false;
+      }
+    }
+  }
+  return true;
 }
 function iqOddGenerate(tier){
   // The RULE FAMILY is randomized on every single question - never locked to the
@@ -470,6 +535,13 @@ function iqOddGenerate(tier){
   const genFn = family === 'orientation' ? iqOddGenOrientation : family === 'ratio' ? iqOddGenRatio : iqOddGenSymmetry;
   let result, guard = 0;
   do { result = genFn(tier); guard++; } while (guard < 10 && !iqOddVerifyExactlyOneOdd(result));
+  if (!iqOddVerifyExactlyOneOdd(result)){
+    // Clear, loud failure instead of silently handing the player an ambiguous
+    // question - this should be unreachable with a verified-chiral base shape
+    // and working ratio/symmetry generators, so reaching it means something
+    // regressed and needs fixing, not a case to paper over.
+    throw new Error('iqOddGenerate: failed to produce a valid "' + family + '" question after ' + guard + ' attempts (tier ' + tier + ').');
+  }
   return result;
 }
 function iqOddRenderItem(item){
@@ -512,178 +584,180 @@ function iqPairedColor(color){
   return pickOne(IQ_SHAPE_COLORS.filter(c => c !== color));
 }
 
-// Difficulty ladder shifted up again: what used to be tier 5 (the reversed
-// count-halving trap) is now tier 1; what used to be tier 6/7 are now tiers
-// 2/3; and four brand-new, harder-still tiers sit above that, each requiring
-// a computed/derived relationship rather than a fixed offset copied onto B -
-// a conditional rule (the concrete change depends on a computed parity) is
-// the hardest kind of analogy, since applying it correctly to B can require a
-// DIFFERENT concrete change than the one shown on A.
-function generateAnalogy(tier){
-  const subtype2 = tier === 2 ? pickOne(['fourAttributeCombo', 'reversedComboTrap']) : null;
-  const subtype3 = tier === 3 ? pickOne(['oddAngleTrap', 'derivedRotationCount']) : null;
-  const usesRotation = (tier === 2 && subtype2 === 'fourAttributeCombo') || tier === 3 || tier >= 4;
+// Rebuilt around a shared POOL of independent mechanics rather than one fixed
+// mechanic per tier: every mechanic below is exactly what used to be a single
+// tier (or sub-tier) branch, now a standalone function. `tier` only controls
+// which mechanics have UNLOCKED so far (each has a minTier) - the mechanic
+// actually used for a given question is picked at random from everything
+// unlocked at that tier, so a run of questions at the same level mixes
+// different underlying rules instead of repeating the same one with new
+// shapes every time. Tier 1 still has exactly one mechanic (there was only
+// ever one this simple), but from tier 2 up the pool - and therefore the
+// variety - keeps growing.
+function iqAnalogySetupTypes(usesRotation){
   const useArrowForRotation = usesRotation && Math.random() < 0.6;
   const typePool = usesRotation
     ? (useArrowForRotation ? IQ_DIRECTIONAL_SHAPES : IQ_ROTATABLE_SHAPES)
     : IQ_SHAPE_TYPES.slice(0, 5);
   const typeA = pickOne(typePool);
   const typeB = useArrowForRotation ? typeA : pickOne(typePool.filter(t => t !== typeA));
-  const colorA = pickOne(IQ_SHAPE_COLORS);
-  const colorB = pickOne(IQ_SHAPE_COLORS);
-
-  const A = { type: typeA, color: colorA };
-  const B = { type: typeB, color: colorB };
+  const A = { type: typeA, color: pickOne(IQ_SHAPE_COLORS) };
+  const B = { type: typeB, color: pickOne(IQ_SHAPE_COLORS) };
   if (usesRotation && !useArrowForRotation){ A.marker = true; B.marker = true; } // orientation dot makes the rotation readable
-  let Aprime, correctBprime, wrongBprimes;
+  return { A, B };
+}
+function iqAnalogyPickRotationsMod3(){
+  // halves land on DIFFERENT remainders mod 3, so B's correct rotation is
+  // genuinely different from A's - the rule must be applied, not copied.
+  const ROT_BY_MOD3 = [90, 180, 270];
+  const evenPool = [4, 6, 8, 10, 12, 14, 16];
+  let baseA, baseB, halfA, halfB, guard = 0;
+  do {
+    baseA = pickOne(evenPool);
+    baseB = pickOne(evenPool.filter(v => v !== baseA));
+    halfA = baseA / 2; halfB = baseB / 2;
+    guard++;
+  } while (guard < 30 && halfA % 3 === halfB % 3);
+  const rotA = ROT_BY_MOD3[halfA % 3];
+  const rotB = ROT_BY_MOD3[halfB % 3];
+  const rotNeither = ROT_BY_MOD3.find(r => r !== rotA && r !== rotB);
+  return { baseA, baseB, halfA, halfB, rotA, rotB, rotNeither };
+}
 
-  if (tier === 1){ // count HALVES, not doubles - the reversed-direction trap (was the old tier 5)
-    const baseA = 4, baseB = 6;
-    A.count = baseA; B.count = baseB;
-    Aprime = Object.assign({}, A, { count: baseA / 2 });
-    correctBprime = Object.assign({}, B, { count: baseB / 2 });
-    wrongBprimes = [
-      Object.assign({}, B, { count: baseB * 2 }), // doubled instead of halved - the common trap
-      Object.assign({}, B, { count: baseB - 1 }),
-      Object.assign({}, B, { count: baseB })
-    ];
-
-  } else if (tier === 2){ // was the old tier 6
-    if (subtype2 === 'fourAttributeCombo'){
-      // color + size + rotation + count all at once
-      Aprime = Object.assign({}, A, { color: iqPairedColor(A.color), scale: 1.4, rotation: 90, count: 2 });
-      correctBprime = Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, rotation: 90, count: 2 });
-      wrongBprimes = [
-        Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, rotation: 90 }), // missing the count change
-        Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, count: 2 }),     // missing the rotation
-        Object.assign({}, B, { scale: 1.4, rotation: 90, count: 2 })                       // missing the color change
-      ];
-    } else {
-      // reversedComboTrap: count HALVES (tier 1's trap) AND color swaps, together
-      const baseA = 4, baseB = 6;
-      A.count = baseA; B.count = baseB;
-      Aprime = Object.assign({}, A, { count: baseA / 2, color: iqPairedColor(A.color) });
-      correctBprime = Object.assign({}, B, { count: baseB / 2, color: iqPairedColor(B.color) });
-      wrongBprimes = [
-        Object.assign({}, B, { count: baseB * 2, color: iqPairedColor(B.color) }), // doubled instead of halved, but got the color right
-        Object.assign({}, B, { count: baseB / 2 }),                               // halved correctly, forgot the color
-        Object.assign({}, B, { count: baseB, color: iqPairedColor(B.color) })     // forgot to change the count at all
-      ];
-    }
-
-  } else if (tier === 3){ // was the old tier 7
-    if (subtype3 === 'oddAngleTrap'){
-      // rotation by an unexpected 135 degrees (not the "obvious" 90) COMBINED
-      // with count halving AND a color swap - three attributes, one of them a trap.
-      const baseA = 4, baseB = 8;
-      A.count = baseA; B.count = baseB;
-      Aprime = Object.assign({}, A, { rotation: 135, color: iqPairedColor(A.color), count: baseA / 2 });
-      correctBprime = Object.assign({}, B, { rotation: 135, color: iqPairedColor(B.color), count: baseB / 2 });
-      wrongBprimes = [
-        Object.assign({}, B, { rotation: 90, color: iqPairedColor(B.color), count: baseB / 2 }),  // assumed the "usual" 90 instead of 135
-        Object.assign({}, B, { rotation: 135, color: iqPairedColor(B.color), count: baseB * 2 }),  // doubled instead of halved
-        Object.assign({}, B, { rotation: 135, count: baseB / 2 })                                  // forgot the color
-      ];
-    } else {
-      // derivedRotationCount: rotation isn't a fixed offset - it's DERIVED from
-      // the count (rotation = count x 45), so doubling the count means the
-      // rotation must be recomputed, not just repeated or bumped by a constant.
-      const baseA = 2, baseB = 3;
-      A.count = baseA; A.rotation = baseA * 45;
-      B.count = baseB; B.rotation = baseB * 45;
-      const newCountA = baseA * 2, newCountB = baseB * 2;
-      Aprime = Object.assign({}, A, { count: newCountA, rotation: newCountA * 45 });
-      correctBprime = Object.assign({}, B, { count: newCountB, rotation: newCountB * 45 });
-      wrongBprimes = [
-        Object.assign({}, B, { count: newCountB, rotation: baseB * 45 }), // doubled the count, forgot rotation must scale WITH it
-        Object.assign({}, B, { count: newCountB, rotation: 90 }),          // guessed a generic rotation instead of the derived one
-        Object.assign({}, B, { count: baseB, rotation: newCountB * 45 })   // got the derived rotation, forgot to double the count
-      ];
-    }
-
-  } else if (tier === 4){
-    // NEW: the derived-rotation idea (old tier 7) pushed further - rotation is
-    // derived from the NEW (doubled) count, AND color + size change alongside it.
-    const baseA = 2, baseB = 3;
-    A.count = baseA; B.count = baseB;
-    const newA = baseA * 2, newB = baseB * 2;
-    Aprime = Object.assign({}, A, { count: newA, rotation: newA * 45, color: iqPairedColor(A.color), scale: 1.3 });
-    correctBprime = Object.assign({}, B, { count: newB, rotation: newB * 45, color: iqPairedColor(B.color), scale: 1.3 });
-    wrongBprimes = [
-      Object.assign({}, B, { count: newB, rotation: baseB * 45, color: iqPairedColor(B.color), scale: 1.3 }), // used the OLD count to derive rotation
-      Object.assign({}, B, { count: newB, rotation: newB * 45, scale: 1.3 }),                                 // forgot the color
-      Object.assign({}, B, { count: newB, rotation: newB * 45, color: iqPairedColor(B.color) })               // forgot the size change
-    ];
-
-  } else if (tier === 5){
-    // NEW: the derived-rotation relationship, but based on a HALVED count
-    // (combining tier 1's reversed-direction trap with a computed rotation).
-    const baseA = 8, baseB = 6;
-    A.count = baseA; B.count = baseB;
-    const newA = baseA / 2, newB = baseB / 2;
-    Aprime = Object.assign({}, A, { count: newA, rotation: newA * 45 });
-    correctBprime = Object.assign({}, B, { count: newB, rotation: newB * 45 });
-    wrongBprimes = [
-      Object.assign({}, B, { count: newB, rotation: baseB * 45 }),           // derived the rotation from the OLD count instead of the new one
-      Object.assign({}, B, { count: baseB * 2, rotation: (baseB*2) * 45 }),  // doubled instead of halved (rotation consistent with that wrong count)
-      Object.assign({}, B, { count: newB, rotation: 90 })                   // right count, generic wrong rotation
-    ];
-
-  } else if (tier === 6){
-    // NEW (hardest yet): the rule is CONDITIONAL - halve the count, then the
-    // rotation depends on the halved count's remainder mod 3 (three possible
-    // outcomes, not just two, so every distractor can be made genuinely
-    // distinct). baseA/baseB are chosen so their halves land on DIFFERENT
-    // remainders, so the correct answer for B is a genuinely different
-    // concrete rotation than A's - the rule must actually be applied, not
-    // just copied from A to B.
-    const ROT_BY_MOD3 = [90, 180, 270];
-    const evenPool = [4, 6, 8, 10, 12, 14, 16];
-    let baseA, baseB, halfA, halfB, guard = 0;
-    do {
-      baseA = pickOne(evenPool);
-      baseB = pickOne(evenPool.filter(v => v !== baseA));
-      halfA = baseA / 2; halfB = baseB / 2;
-      guard++;
-    } while (guard < 30 && halfA % 3 === halfB % 3);
-    A.count = baseA; B.count = baseB;
-    const rotA = ROT_BY_MOD3[halfA % 3];
-    const rotB = ROT_BY_MOD3[halfB % 3];
-    const rotNeither = ROT_BY_MOD3.find(r => r !== rotA && r !== rotB); // the one value distinct from both - guarantees no collision
-    Aprime = Object.assign({}, A, { count: halfA, rotation: rotA });
-    correctBprime = Object.assign({}, B, { count: halfB, rotation: rotB });
-    wrongBprimes = [
-      Object.assign({}, B, { count: halfB, rotation: rotA }),         // copied A's rotation literally instead of re-deriving it for B
-      Object.assign({}, B, { count: baseB, rotation: rotB }),         // forgot to halve the count
-      Object.assign({}, B, { count: halfB, rotation: rotNeither })    // a plausible but wrong third rotation
-    ];
-
-  } else {
-    // tier 7 (hardest): the same conditional mod-3 rotation rule, now
-    // combined with a simultaneous color swap AND size growth on top.
-    const ROT_BY_MOD3 = [90, 180, 270];
-    const evenPool = [4, 6, 8, 10, 12, 14, 16];
-    let baseA, baseB, halfA, halfB, guard = 0;
-    do {
-      baseA = pickOne(evenPool);
-      baseB = pickOne(evenPool.filter(v => v !== baseA));
-      halfA = baseA / 2; halfB = baseB / 2;
-      guard++;
-    } while (guard < 30 && halfA % 3 === halfB % 3);
-    A.count = baseA; B.count = baseB;
-    const rotA = ROT_BY_MOD3[halfA % 3];
-    const rotB = ROT_BY_MOD3[halfB % 3];
-    const rotNeither = ROT_BY_MOD3.find(r => r !== rotA && r !== rotB); // the one value distinct from both - guarantees no collision
-    Aprime = Object.assign({}, A, { count: halfA, rotation: rotA, color: iqPairedColor(A.color), scale: 1.3 });
-    correctBprime = Object.assign({}, B, { count: halfB, rotation: rotB, color: iqPairedColor(B.color), scale: 1.3 });
-    wrongBprimes = [
-      Object.assign({}, B, { count: halfB, rotation: rotA, color: iqPairedColor(B.color), scale: 1.3 }),        // copied A's literal rotation
-      Object.assign({}, B, { count: baseB, rotation: rotB, color: iqPairedColor(B.color), scale: 1.3 }),        // forgot to halve the count
-      Object.assign({}, B, { count: halfB, rotation: rotNeither, color: iqPairedColor(B.color), scale: 1.3 })   // a plausible but wrong third rotation
-    ];
-  }
-
+function iqAnalogyMech_countHalve(){ // count HALVES, not doubles - the reversed-direction trap
+  const { A, B } = iqAnalogySetupTypes(false);
+  const baseA = 4, baseB = 6;
+  A.count = baseA; B.count = baseB;
+  const Aprime = Object.assign({}, A, { count: baseA / 2 });
+  const correctBprime = Object.assign({}, B, { count: baseB / 2 });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: baseB * 2 }), // doubled instead of halved - the common trap
+    Object.assign({}, B, { count: baseB - 1 }),
+    Object.assign({}, B, { count: baseB })
+  ];
   return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_fourAttributeCombo(){ // color + size + rotation + count all at once
+  const { A, B } = iqAnalogySetupTypes(true);
+  const Aprime = Object.assign({}, A, { color: iqPairedColor(A.color), scale: 1.4, rotation: 90, count: 2 });
+  const correctBprime = Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, rotation: 90, count: 2 });
+  const wrongBprimes = [
+    Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, rotation: 90 }), // missing the count change
+    Object.assign({}, B, { color: iqPairedColor(B.color), scale: 1.4, count: 2 }),     // missing the rotation
+    Object.assign({}, B, { scale: 1.4, rotation: 90, count: 2 })                       // missing the color change
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_reversedComboTrap(){ // count HALVES and color swaps, together
+  const { A, B } = iqAnalogySetupTypes(false);
+  const baseA = 4, baseB = 6;
+  A.count = baseA; B.count = baseB;
+  const Aprime = Object.assign({}, A, { count: baseA / 2, color: iqPairedColor(A.color) });
+  const correctBprime = Object.assign({}, B, { count: baseB / 2, color: iqPairedColor(B.color) });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: baseB * 2, color: iqPairedColor(B.color) }), // doubled instead of halved, but got the color right
+    Object.assign({}, B, { count: baseB / 2 }),                               // halved correctly, forgot the color
+    Object.assign({}, B, { count: baseB, color: iqPairedColor(B.color) })     // forgot to change the count at all
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_oddAngleTrap(){ // rotation by an unexpected 135deg + count halving + a color swap
+  const { A, B } = iqAnalogySetupTypes(true);
+  const baseA = 4, baseB = 8;
+  A.count = baseA; B.count = baseB;
+  const Aprime = Object.assign({}, A, { rotation: 135, color: iqPairedColor(A.color), count: baseA / 2 });
+  const correctBprime = Object.assign({}, B, { rotation: 135, color: iqPairedColor(B.color), count: baseB / 2 });
+  const wrongBprimes = [
+    Object.assign({}, B, { rotation: 90, color: iqPairedColor(B.color), count: baseB / 2 }),  // assumed the "usual" 90 instead of 135
+    Object.assign({}, B, { rotation: 135, color: iqPairedColor(B.color), count: baseB * 2 }),  // doubled instead of halved
+    Object.assign({}, B, { rotation: 135, count: baseB / 2 })                                  // forgot the color
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_derivedRotationCount(){ // rotation DERIVED from count (count x 45), count doubles
+  const { A, B } = iqAnalogySetupTypes(true);
+  const baseA = 2, baseB = 3;
+  A.count = baseA; A.rotation = baseA * 45;
+  B.count = baseB; B.rotation = baseB * 45;
+  const newCountA = baseA * 2, newCountB = baseB * 2;
+  const Aprime = Object.assign({}, A, { count: newCountA, rotation: newCountA * 45 });
+  const correctBprime = Object.assign({}, B, { count: newCountB, rotation: newCountB * 45 });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: newCountB, rotation: baseB * 45 }), // doubled the count, forgot rotation must scale WITH it
+    Object.assign({}, B, { count: newCountB, rotation: 90 }),          // guessed a generic rotation instead of the derived one
+    Object.assign({}, B, { count: baseB, rotation: newCountB * 45 })   // got the derived rotation, forgot to double the count
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_derivedGrowCombo(){ // derived rotation from the doubled count, AND color + size change alongside
+  const { A, B } = iqAnalogySetupTypes(true);
+  const baseA = 2, baseB = 3;
+  A.count = baseA; B.count = baseB;
+  const newA = baseA * 2, newB = baseB * 2;
+  const Aprime = Object.assign({}, A, { count: newA, rotation: newA * 45, color: iqPairedColor(A.color), scale: 1.3 });
+  const correctBprime = Object.assign({}, B, { count: newB, rotation: newB * 45, color: iqPairedColor(B.color), scale: 1.3 });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: newB, rotation: baseB * 45, color: iqPairedColor(B.color), scale: 1.3 }), // used the OLD count to derive rotation
+    Object.assign({}, B, { count: newB, rotation: newB * 45, scale: 1.3 }),                                 // forgot the color
+    Object.assign({}, B, { count: newB, rotation: newB * 45, color: iqPairedColor(B.color) })               // forgot the size change
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_derivedHalveCombo(){ // derived rotation, but based on a HALVED count
+  const { A, B } = iqAnalogySetupTypes(true);
+  const baseA = 8, baseB = 6;
+  A.count = baseA; B.count = baseB;
+  const newA = baseA / 2, newB = baseB / 2;
+  const Aprime = Object.assign({}, A, { count: newA, rotation: newA * 45 });
+  const correctBprime = Object.assign({}, B, { count: newB, rotation: newB * 45 });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: newB, rotation: baseB * 45 }),           // derived the rotation from the OLD count instead of the new one
+    Object.assign({}, B, { count: baseB * 2, rotation: (baseB*2) * 45 }),  // doubled instead of halved (rotation consistent with that wrong count)
+    Object.assign({}, B, { count: newB, rotation: 90 })                   // right count, generic wrong rotation
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_conditionalMod3(){ // CONDITIONAL rule - rotation depends on the halved count's remainder mod 3
+  const { A, B } = iqAnalogySetupTypes(true);
+  const { baseA, baseB, halfA, halfB, rotA, rotB, rotNeither } = iqAnalogyPickRotationsMod3();
+  A.count = baseA; B.count = baseB;
+  const Aprime = Object.assign({}, A, { count: halfA, rotation: rotA });
+  const correctBprime = Object.assign({}, B, { count: halfB, rotation: rotB });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: halfB, rotation: rotA }),         // copied A's rotation literally instead of re-deriving it for B
+    Object.assign({}, B, { count: baseB, rotation: rotB }),         // forgot to halve the count
+    Object.assign({}, B, { count: halfB, rotation: rotNeither })    // a plausible but wrong third rotation
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+function iqAnalogyMech_conditionalMod3Combo(){ // the conditional mod-3 rule, plus a simultaneous color swap AND size growth
+  const { A, B } = iqAnalogySetupTypes(true);
+  const { baseA, baseB, halfA, halfB, rotA, rotB, rotNeither } = iqAnalogyPickRotationsMod3();
+  A.count = baseA; B.count = baseB;
+  const Aprime = Object.assign({}, A, { count: halfA, rotation: rotA, color: iqPairedColor(A.color), scale: 1.3 });
+  const correctBprime = Object.assign({}, B, { count: halfB, rotation: rotB, color: iqPairedColor(B.color), scale: 1.3 });
+  const wrongBprimes = [
+    Object.assign({}, B, { count: halfB, rotation: rotA, color: iqPairedColor(B.color), scale: 1.3 }),        // copied A's literal rotation
+    Object.assign({}, B, { count: baseB, rotation: rotB, color: iqPairedColor(B.color), scale: 1.3 }),        // forgot to halve the count
+    Object.assign({}, B, { count: halfB, rotation: rotNeither, color: iqPairedColor(B.color), scale: 1.3 })   // a plausible but wrong third rotation
+  ];
+  return { A, Aprime, B, correctBprime, wrongBprimes };
+}
+
+const IQ_ANALOGY_MECHANICS = [
+  { minTier: 1, fn: iqAnalogyMech_countHalve },
+  { minTier: 2, fn: iqAnalogyMech_fourAttributeCombo },
+  { minTier: 2, fn: iqAnalogyMech_reversedComboTrap },
+  { minTier: 3, fn: iqAnalogyMech_oddAngleTrap },
+  { minTier: 3, fn: iqAnalogyMech_derivedRotationCount },
+  { minTier: 4, fn: iqAnalogyMech_derivedGrowCombo },
+  { minTier: 5, fn: iqAnalogyMech_derivedHalveCombo },
+  { minTier: 6, fn: iqAnalogyMech_conditionalMod3 },
+  { minTier: 7, fn: iqAnalogyMech_conditionalMod3Combo }
+];
+function generateAnalogy(tier){
+  const pool = IQ_ANALOGY_MECHANICS.filter(m => m.minTier <= tier);
+  return pickOne(pool).fn();
 }
 
 registerIQCategory({

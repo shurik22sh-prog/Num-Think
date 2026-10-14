@@ -143,12 +143,18 @@ function renderShapeSVG(spec){
   } else {
     // Spacing must shrink as count grows, or shapes drift past the viewBox edges
     // and get silently clipped (invisible) - this keeps every copy on-screen.
+    // Crucially, the UNIT'S OWN SIZE must also be capped to fit inside its
+    // allotted gap (same safety margin the old flat-icon renderer used) - a
+    // fixed shrink factor isn't enough once there are 3-4 copies, since the
+    // gap shrinks with count but a fixed factor doesn't, causing overlap.
     const maxWidth = size * 0.86;
     const gap = maxWidth / count;
+    const fitScale = (gap * 1.05) / size;
+    const unitScale = Math.min(scale, fitScale);
     const startX = cx - (gap * (count - 1)) / 2;
     for (let i = 0; i < count; i++){
       const dx = (startX + i * gap - cx).toFixed(1);
-      inner += '<g transform="translate('+dx+' 0)">'+iqRichShapeUnit(type, color, rotation, scale * 0.5, size)+'</g>';
+      inner += '<g transform="translate('+dx+' 0)">'+iqRichShapeUnit(type, color, rotation, unitScale, size)+'</g>';
     }
   }
   if (spec.marker && count <= 1){
