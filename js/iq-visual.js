@@ -343,12 +343,16 @@ registerIQCategory({
 // asymmetric but actually had a hidden DIAGONAL mirror axis - mirroring it
 // across the Y axis produced the exact same polygon (same vertices, opposite
 // winding) as rotating the original by 90 degrees, so the "mirror" option was
-// pixel-identical to one of the "rotation" options. This shape avoids that by
-// making the outer footprint and the notch both asymmetric (48x48 outer, but
-// a 22x20 notch offset from the corner) - verified below, by actual geometric
+// pixel-identical to one of the "rotation" options. A later 22x20 notch fixed
+// the exact-duplicate bug but was still too close to square (only a 2-unit
+// difference between its own width and height), so the mirrored option's
+// notch - even when mathematically distinct - looked only a few pixels
+// different from a normal rotation sharing the same corner. This 22x10 notch
+// (over twice as wide as it is tall) makes that difference obvious at a
+// glance, not just provable on paper - verified below, by actual geometric
 // comparison against all 4 rotations and all 4 rotations of its mirror image,
 // not by assumption.
-const IQ_ODD_FLAG_BASE = [[-24,-24], [24,-24], [24,4], [2,4], [2,24], [-24,24]];
+const IQ_ODD_FLAG_BASE = [[-24,-24], [24,-24], [24,14], [2,14], [2,24], [-24,24]];
 
 function iqOddRotatePoints(pts, deg){
   const rad = deg * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
@@ -405,6 +409,33 @@ function iqOddIsRotationOfBase(pts){
     }
   }
 })();
+// The notch's inner corner (the "reflex vertex") is the one point, of the 6,
+// that sits on NEITHER the min NOR the max of the shape's own bounding box in
+// either axis - every other point is a bounding-box extreme. This does NOT
+// assume there is exactly one such point; it asserts it, and throws if that
+// assumption is ever violated by a future edit to the shape, instead of
+// silently picking an arbitrary candidate.
+function iqOddReflexVertex(pts){
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const tol = 0.5;
+  const candidates = pts.filter(([x,y]) =>
+    Math.abs(x-minX) > tol && Math.abs(x-maxX) > tol && Math.abs(y-minY) > tol && Math.abs(y-maxY) > tol);
+  if (candidates.length !== 1){
+    throw new Error('iqOddReflexVertex: expected exactly 1 reflex vertex, found ' + candidates.length + ' - the shape may have changed shape.');
+  }
+  return candidates[0];
+}
+// Which of the 4 quadrants (relative to the polygon's own center) the notch
+// currently points toward - this is what a player actually SEES as "which
+// corner is cut", independent of exact proportions. Two options whose notch
+// sits in the same quadrant are visually confusable even if their polygons
+// are mathematically distinct (different notch proportions) - see
+// iqOddVerifyExactlyOneOdd, which rejects that case for the orientation rule.
+function iqOddNotchQuadrant(pts){
+  const p = iqOddReflexVertex(pts);
+  return (p[0] >= 0 ? 'R' : 'L') + (p[1] >= 0 ? 'B' : 'T');
+}
 function iqOddRenderPolygon(pts, color, strokeWidth, size){
   size = size || 100;
   const cx = size/2, cy = size/2, scale = size*0.42/24;
@@ -416,7 +447,16 @@ function iqOddGenOrientation(tier){
   const color = pickOne(IQ_SHAPE_COLORS), strokeWidth = 3, size = 100;
   const rotPool = shuffle([0, 90, 180, 270]);
   const normalRots = rotPool.slice(0, 3);
-  const oddRot = (tier >= 4) ? rotPool[3] : 0; // easy tiers: mirror shown upright; harder tiers: mirror at a random 4th angle
+  const missingAngle = rotPool[3]; // the one rotation NOT shown as a "normal" option
+  // Mirroring reverses handedness, so mirror(r)'s notch always lands in the
+  // SAME quadrant as unmirrored(r+90) - verified empirically against
+  // iqOddRotatePoints/iqOddMirrorPoints for this exact shape (not assumed).
+  // Solving for the oddRot whose mirrored notch lands where unmirrored
+  // (missingAngle) would have - the one quadrant guaranteed unused by the 3
+  // normal rotations - guarantees the mirrored option's notch sits in a
+  // visually distinct corner from all three, not just a different polygon.
+  // This holds at every tier, so there is no separate easy/hard branch here.
+  const oddRot = (missingAngle - 90 + 360) % 360;
   const oddIndex = randInt(0, 3);
   const items = normalRots.map(r => ({ pts: iqOddRotatePoints(IQ_ODD_FLAG_BASE, r), color, strokeWidth, size }));
   items.splice(oddIndex, 0, { pts: iqOddRotatePoints(iqOddMirrorPoints(IQ_ODD_FLAG_BASE), oddRot), color, strokeWidth, size });
@@ -521,6 +561,15 @@ function iqOddVerifyExactlyOneOdd(result){
       for (let j = i+1; j < result.items.length; j++){
         if (iqOddPolygonsCongruent(result.items[i].pts, result.items[j].pts)) return false;
       }
+    }
+    // Mathematically-distinct polygons can still be visually confusable if
+    // their notch sits in the same corner (a child reads "which corner is
+    // cut", not exact proportions) - so this additionally rejects a question
+    // where the mirrored option's notch quadrant matches any normal option's.
+    const oddQuadrant = iqOddNotchQuadrant(result.items[result.oddIndex].pts);
+    for (let i = 0; i < result.items.length; i++){
+      if (i === result.oddIndex) continue;
+      if (iqOddNotchQuadrant(result.items[i].pts) === oddQuadrant) return false;
     }
   }
   return true;
