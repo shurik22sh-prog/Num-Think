@@ -318,135 +318,164 @@ registerIQCategory({
 });
 
 /* ============ Category: odd one out ============ */
-// Difficulty ladder shifted up: what used to be the hardest tier (the two-attribute
-// compound trap) is now the starting point. Above it: a three-attribute compound,
-// genuine conceptual categorization (side-count parity, not surface looks), that
-// same categorization buried under heavy noise, and finally a deliberate
-// misdirection (a 2-2 split on one attribute that ISN'T the real signal).
-function generateOddOneOut(tier){
-  const shape = pickOne(IQ_SHAPE_TYPES.slice(0, 5));
-  const color = pickOne(IQ_SHAPE_COLORS);
-  const items = [{type:shape,color:color},{type:shape,color:color},{type:shape,color:color},{type:shape,color:color}];
+// Rebuilt around three hand-picked "gifted-test" rules, each with a single
+// changing variable - every other visual parameter (size, fill color, stroke
+// width, frame) is held IDENTICAL across all 4 options, so there is never a
+// secondary attribute that could make a second option look "odd" too:
+//   1. orientation - 3 copies of the same CHIRAL (no symmetry of its own)
+//      compound shape at different rotations; the 4th is a mirror image -
+//      a mirror of a chiral shape is never reachable by any rotation, so the
+//      correct answer is mathematically guaranteed to be unique.
+//   2. ratio - every shape has N sides and N inner dots; 3 satisfy
+//      dots = sides - 1, the 4th doesn't.
+//   3. symmetry - 3 shapes are built by actually mirroring one half of a
+//      jagged outline across an axis (so they are exactly, not approximately,
+//      symmetric); the 4th is built from independent random radii and
+//      verified to carry neither a vertical nor horizontal symmetry axis.
+// Every generator is wrapped in a self-verification retry loop (see
+// iqOddVerifyExactlyOneOdd) that recomputes which option(s) break the rule and
+// regenerates unless EXACTLY one does - so an ambiguous question (zero or
+// multiple "odd" shapes) can never reach the player.
+
+// ---- shared asymmetric "flag" shape (orientation rule) ----
+// A hexagonal L-shape with no rotational or reflective symmetry of its own -
+// verified by construction: rotating it 90/180/270 never reproduces the same
+// point set, and mirroring it never matches any of its own rotations either.
+const IQ_ODD_FLAG_BASE = [[-24,-24], [24,-24], [24,0], [0,0], [0,24], [-24,24]];
+
+function iqOddRotatePoints(pts, deg){
+  const rad = deg * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  return pts.map(([x,y]) => [x*cos - y*sin, x*sin + y*cos]);
+}
+function iqOddMirrorPoints(pts){ return pts.map(([x,y]) => [-x, y]); }
+function iqOddPointsMatch(a, b){
+  return a.every((p,i) => Math.abs(p[0]-b[i][0]) < 0.01 && Math.abs(p[1]-b[i][1]) < 0.01);
+}
+function iqOddIsRotationOfBase(pts){
+  return [0,90,180,270].some(r => iqOddPointsMatch(pts, iqOddRotatePoints(IQ_ODD_FLAG_BASE, r)));
+}
+function iqOddRenderPolygon(pts, color, strokeWidth, size){
+  size = size || 100;
+  const cx = size/2, cy = size/2, scale = size*0.42/24;
+  const svgPts = pts.map(([x,y]) => (cx+x*scale).toFixed(1)+','+(cy+y*scale).toFixed(1)).join(' ');
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+
+    '<polygon points="'+svgPts+'" fill="'+color+'" stroke="#1a1a2e" stroke-width="'+strokeWidth+'" stroke-linejoin="round"/></svg>';
+}
+function iqOddGenOrientation(tier){
+  const color = pickOne(IQ_SHAPE_COLORS), strokeWidth = 3, size = 100;
+  const rotPool = shuffle([0, 90, 180, 270]);
+  const normalRots = rotPool.slice(0, 3);
+  const oddRot = (tier >= 4) ? rotPool[3] : 0; // easy tiers: mirror shown upright; harder tiers: mirror at a random 4th angle
   const oddIndex = randInt(0, 3);
-  let explanation;
+  const items = normalRots.map(r => ({ pts: iqOddRotatePoints(IQ_ODD_FLAG_BASE, r), color, strokeWidth, size }));
+  items.splice(oddIndex, 0, { pts: iqOddRotatePoints(iqOddMirrorPoints(IQ_ODD_FLAG_BASE), oddRot), color, strokeWidth, size });
+  return { items, oddIndex, family: 'orientation', explanation: 'שלוש הצורות הן אותה צורה מסובבת בזוויות שונות - הצורה שנבחרה היא תמונת ראי (שיקוף), לא סיבוב.' };
+}
 
-  if (tier === 1){
-    // compound: 3 share BOTH color+rotation; noise on shape type & count (was the old tier 5)
-    const rot = pickOne([0, 90, 180, 270]);
-    items.forEach(it => { it.color = color; it.rotation = rot; it.type = pickOne(IQ_ROTATABLE_SHAPES); it.count = randInt(1,2); it.marker = true; });
-    if (Math.random() < 0.5){
-      const oddColor = pickOne(IQ_SHAPE_COLORS.filter(c => c !== color));
-      items[oddIndex].color = oddColor;
-      explanation = 'שלוש הצורות (גם אם הן סוגים שונים) הן באותו צבע ובאותה זווית סיבוב, אבל הצורה שנבחרה בצבע ' + IQ_COLOR_NAMES[oddColor] + ' במקום ' + IQ_COLOR_NAMES[color] + '.';
-    } else {
-      items[oddIndex].rotation = (rot + 90) % 360;
-      explanation = 'שלוש הצורות (גם אם הן סוגים שונים) הן באותו צבע ובאותה זווית סיבוב, אבל הצורה שנבחרה מסובבת בזווית אחרת.';
-    }
-
-  } else if (tier === 2){
-    // three-attribute compound: color + rotation + count all shared; noise on type only
-    const rot = pickOne([0, 90, 180, 270]);
-    const cnt = randInt(1, 2);
-    items.forEach(it => { it.color = color; it.rotation = rot; it.count = cnt; it.type = pickOne(IQ_ROTATABLE_SHAPES); it.marker = true; });
-    const pick = pickOne(['color', 'rotation', 'count']);
-    if (pick === 'color'){
-      const oddColor = pickOne(IQ_SHAPE_COLORS.filter(c => c !== color));
-      items[oddIndex].color = oddColor;
-      explanation = 'שלוש הצורות שוות בצבע, בזווית הסיבוב ובכמות - הצורה שנבחרה שונה בצבע (' + IQ_COLOR_NAMES[oddColor] + ' במקום ' + IQ_COLOR_NAMES[color] + ').';
-    } else if (pick === 'rotation'){
-      items[oddIndex].rotation = (rot + 90) % 360;
-      explanation = 'שלוש הצורות שוות בצבע, בזווית הסיבוב ובכמות - הצורה שנבחרה שונה בזווית הסיבוב.';
-    } else {
-      let oddCount = cnt + (Math.random() < 0.5 ? 1 : -1);
-      if (oddCount < 1) oddCount = cnt + 1;
-      items[oddIndex].count = oddCount;
-      explanation = 'שלוש הצורות שוות בצבע, בזווית הסיבוב ובכמות - הצורה שנבחרה שונה בכמות (' + oddCount + ' במקום ' + cnt + ').';
-    }
-
-  } else if (tier === 3 || tier === 4){
-    // genuine conceptual category (side-count parity) rather than a surface attribute -
-    // tier 4 additionally buries it under full noise on color/rotation/count.
-    const evenShapes = ['square', 'hexagon'];
-    const oddShapes = ['triangle', 'pentagon'];
-    const commonIsEven = Math.random() < 0.5;
-    const groupCommon = commonIsEven ? evenShapes : oddShapes;
-    const groupOdd = commonIsEven ? oddShapes : evenShapes;
-    const commonLabel = commonIsEven ? 'מספר זוגי של צלעות' : 'מספר אי-זוגי של צלעות';
-    const oddLabel = commonIsEven ? 'מספר אי-זוגי של צלעות' : 'מספר זוגי של צלעות';
-
-    if (tier === 3){
-      items.forEach(it => { it.type = pickOne(groupCommon); it.color = color; });
-    } else {
-      items.forEach(it => { it.type = pickOne(groupCommon); it.color = pickOne(IQ_SHAPE_COLORS); it.rotation = pickOne([0,90,180,270]); it.count = randInt(1,2); });
-    }
-    items[oddIndex].type = pickOne(groupOdd);
-    explanation = 'לשלוש הצורות יש ' + commonLabel + ' (' + IQ_SHAPE_TYPE_NAMES[groupCommon[0]] + '/' + IQ_SHAPE_TYPE_NAMES[groupCommon[1]] + '), אבל לצורה שנבחרה יש ' + oddLabel + ' (' + IQ_SHAPE_TYPE_NAMES[items[oddIndex].type] + ').';
-
-  } else if (tier === 5){
-    // deliberate misdirection - color splits 2-2 (a red herring),
-    // while the REAL shared rule (shape type, 3-vs-1) is what actually matters.
-    const colorA = pickOne(IQ_SHAPE_COLORS);
-    const colorB = pickOne(IQ_SHAPE_COLORS.filter(c => c !== colorA));
-    const shapeCommon = pickOne(IQ_SHAPE_TYPES.slice(0, 5));
-    const shapeOdd = pickOne(IQ_SHAPE_TYPES.slice(0, 5).filter(t => t !== shapeCommon));
-    items.forEach((it, i) => { it.type = shapeCommon; it.color = (i % 2 === 0) ? colorA : colorB; });
-    items[oddIndex].type = shapeOdd;
-    explanation = 'שימו לב: הצבעים מתחלקים 2-2 - זה לא הרמז! שלוש הצורות הן ' + IQ_SHAPE_TYPE_NAMES[shapeCommon] + ', אבל הצורה שנבחרה היא ' + IQ_SHAPE_TYPE_NAMES[shapeOdd] + '.';
-
-  } else if (tier === 6){
-    // two independent conceptual rules at once - one level beyond tier 3/4's
-    // single side-count-parity category.
-    const subtype = pickOne(['twoRuleCompound', 'countParity']);
-    if (subtype === 'twoRuleCompound'){
-      // the three common items share BOTH side-count parity AND a color-
-      // temperature family (warm/cool); the odd one keeps the color family but
-      // breaks the side-count parity - two simultaneous semantic rules.
-      const evenShapes = ['square', 'hexagon'];
-      const oddShapes = ['triangle', 'pentagon'];
-      const warmColors = ['#FF6B6B', '#FFD93D', '#FF8C42', '#F45B9E'];
-      const coolColors = ['#4ECDC4', '#9B5DE5', '#06D6A0', '#4C6FFF'];
-      const commonIsEven = Math.random() < 0.5;
-      const groupCommon = commonIsEven ? evenShapes : oddShapes;
-      const groupOdd = commonIsEven ? oddShapes : evenShapes;
-      const colorIsWarm = Math.random() < 0.5;
-      const colorGroup = colorIsWarm ? warmColors : coolColors;
-      const colorGroupLabel = colorIsWarm ? 'צבעים חמים' : 'צבעים קרים';
-      const commonLabel = commonIsEven ? 'מספר זוגי של צלעות' : 'מספר אי-זוגי של צלעות';
-      items.forEach(it => { it.type = pickOne(groupCommon); it.color = pickOne(colorGroup); });
-      items[oddIndex].type = pickOne(groupOdd);
-      items[oddIndex].color = pickOne(colorGroup);
-      explanation = 'לשלוש הצורות יש גם ' + commonLabel + ' וגם ' + colorGroupLabel + ' - לצורה שנבחרה יש ' + colorGroupLabel + ' אבל מספר צלעות אחר (' + IQ_SHAPE_TYPE_NAMES[items[oddIndex].type] + ').';
-    } else {
-      // countParity: three share an EVEN count (2), the odd one has an ODD count
-      // (1 or 3) - buried under full noise on shape type, color and rotation.
-      items.forEach(it => { it.type = pickOne(IQ_SHAPE_TYPES.slice(0, 5)); it.color = pickOne(IQ_SHAPE_COLORS); it.rotation = pickOne([0,90,180,270]); it.count = 2; });
-      items[oddIndex].count = pickOne([1, 3]);
-      explanation = 'לשלוש הצורות יש כמות זוגית (2), אבל לצורה שנבחרה יש כמות אי-זוגית (' + items[oddIndex].count + ').';
-    }
-
-  } else {
-    // tier 7 (hardest): TWO simultaneous red herrings (not just one, like tier 5) -
-    // two different attributes both split 2-2, while the real rule is a third,
-    // untouched attribute (shape type, 3-vs-1).
-    const subtype = pickOne(['colorRotationMisdirection', 'colorCountMisdirection']);
-    const colorA = pickOne(IQ_SHAPE_COLORS);
-    const colorB = pickOne(IQ_SHAPE_COLORS.filter(c => c !== colorA));
-    const shapeCommon = pickOne(IQ_SHAPE_TYPES.slice(0, 5));
-    const shapeOdd = pickOne(IQ_SHAPE_TYPES.slice(0, 5).filter(t => t !== shapeCommon));
-    if (subtype === 'colorRotationMisdirection'){
-      const rotA = pickOne([0, 90, 180, 270]);
-      const rotB = pickOne([0, 90, 180, 270].filter(r => r !== rotA));
-      items.forEach((it, i) => { it.type = shapeCommon; it.color = (i % 2 === 0) ? colorA : colorB; it.rotation = (i < 2) ? rotA : rotB; it.marker = true; });
-      items[oddIndex].type = shapeOdd;
-      explanation = 'שימו לב: גם הצבעים וגם זוויות הסיבוב מתחלקים 2-2 - אלה לא הרמזים! שלוש הצורות הן ' + IQ_SHAPE_TYPE_NAMES[shapeCommon] + ', אבל הנבחרת היא ' + IQ_SHAPE_TYPE_NAMES[shapeOdd] + '.';
-    } else {
-      items.forEach((it, i) => { it.type = shapeCommon; it.color = (i % 2 === 0) ? colorA : colorB; it.count = (i < 2) ? 1 : 2; });
-      items[oddIndex].type = shapeOdd;
-      explanation = 'שימו לב: גם הצבעים וגם הכמויות מתחלקים 2-2 - אלה לא הרמזים! שלוש הצורות הן ' + IQ_SHAPE_TYPE_NAMES[shapeCommon] + ', אבל הנבחרת היא ' + IQ_SHAPE_TYPE_NAMES[shapeOdd] + '.';
-    }
+// ---- ratio rule: inner dot count vs side count ----
+function iqOddRenderRatioShape(sides, dots, color, strokeWidth, size){
+  size = size || 100;
+  const cx = size/2, cy = size/2, r = size*0.36;
+  const outlinePts = iqPolygonPoints(cx, cy, r, sides, -90);
+  let inner = '';
+  const dotR = size*0.045, innerR = r*0.5;
+  for (let i = 0; i < dots; i++){
+    const rad = (-90 + i*(360/Math.max(dots,1))) * Math.PI/180;
+    inner += '<circle cx="'+(cx+innerR*Math.cos(rad)).toFixed(1)+'" cy="'+(cy+innerR*Math.sin(rad)).toFixed(1)+'" r="'+dotR.toFixed(1)+'" fill="#1a1a2e"/>';
   }
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+
+    '<polygon points="'+outlinePts+'" fill="'+color+'" stroke="#1a1a2e" stroke-width="'+strokeWidth+'"/>'+inner+'</svg>';
+}
+function iqOddWrongDotCount(sides){
+  const correct = sides - 1;
+  return pickOne([correct+1, correct+2, Math.max(0, correct-1)].filter(v => v !== correct));
+}
+function iqOddGenRatio(tier){
+  const color = pickOne(IQ_SHAPE_COLORS), strokeWidth = 3, size = 100;
+  const sidesPool = (tier >= 4) ? [4,5,6,7] : [3,4,5,6];
+  const chosenSides = shuffle(sidesPool).slice(0, 4);
+  const oddIndex = randInt(0, 3);
+  const items = chosenSides.map((sides, i) => {
+    const dots = (i === oddIndex) ? iqOddWrongDotCount(sides) : sides - 1;
+    return { sides, dots, color, strokeWidth, size };
+  });
+  return { items, oddIndex, family: 'ratio', explanation: 'בשלוש הצורות מספר הנקודות הפנימיות הוא בדיוק מספר הצלעות פחות 1 - בצורה שנבחרה היחס הזה לא מתקיים.' };
+}
 
-  return { items, oddIndex, explanation };
+// ---- symmetry rule: a jagged 8-point outline, mirrored vs independently random ----
+const IQ_ODD_SYM_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+function iqOddRenderBlob(radii, color, strokeWidth, size){
+  size = size || 100;
+  const cx = size/2, cy = size/2;
+  const pts = IQ_ODD_SYM_ANGLES.map((deg,i) => {
+    const rad = deg * Math.PI/180;
+    return (cx+radii[i]*Math.cos(rad)).toFixed(1)+','+(cy+radii[i]*Math.sin(rad)).toFixed(1);
+  }).join(' ');
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+
+    '<polygon points="'+pts+'" fill="'+color+'" stroke="#1a1a2e" stroke-width="'+strokeWidth+'" stroke-linejoin="round"/></svg>';
+}
+// With 8 points spaced 45 degrees apart there are FOUR possible mirror axes
+// (vertical, horizontal, and the two diagonals) - a shape is only genuinely
+// asymmetric if it fails ALL four, not just the first two. Indices follow
+// IQ_ODD_SYM_ANGLES = [0,45,90,135,180,225,270,315].
+function iqOddRadiiSymmetric(r){
+  const tol = 2;
+  const close = (a, b) => Math.abs(a - b) < tol;
+  const vertical   = close(r[0],r[4]) && close(r[1],r[3]) && close(r[5],r[7]); // axis through 90/270
+  const horizontal = close(r[1],r[7]) && close(r[2],r[6]) && close(r[3],r[5]); // axis through 0/180
+  const diag45     = close(r[0],r[2]) && close(r[3],r[7]) && close(r[4],r[6]); // axis through 45/225
+  const diag135    = close(r[0],r[6]) && close(r[1],r[5]) && close(r[2],r[4]); // axis through 135/315
+  return vertical || horizontal || diag45 || diag135;
+}
+function iqOddGenSymmetry(tier){
+  const color = pickOne(IQ_SHAPE_COLORS), strokeWidth = 3, size = 100;
+  // higher tiers narrow the radius range, so the asymmetric shape's "wrongness" is subtler
+  const width = Math.max(6, 16 - (tier-1)*2);
+  const minR = 30 - width/2, maxR = 30 + width/2;
+  const randR = () => minR + Math.random()*(maxR-minR);
+  function buildSymmetric(){
+    // build by actually mirroring the right half across the vertical axis - an
+    // EXACT symmetry by construction, not an approximate/accidental one.
+    const r = new Array(8);
+    r[0] = randR(); r[1] = randR(); r[2] = randR(); r[5] = randR(); r[6] = randR();
+    r[4] = r[0]; r[3] = r[1]; r[7] = r[5];
+    return r;
+  }
+  function buildAsymmetric(){
+    let r, guard = 0;
+    do { r = IQ_ODD_SYM_ANGLES.map(randR); guard++; } while (guard < 30 && iqOddRadiiSymmetric(r));
+    return r;
+  }
+  const oddIndex = randInt(0, 3);
+  const items = [0,1,2,3].map(i => ({ radii: (i === oddIndex) ? buildAsymmetric() : buildSymmetric(), color, strokeWidth, size }));
+  return { items, oddIndex, family: 'symmetry', explanation: 'שלוש הצורות סימטריות (יש להן ציר סימטריה אנכי או אופקי) - הצורה שנבחרה א-סימטרית.' };
+}
+
+// ---- generic self-verification: regenerate unless EXACTLY one item breaks its family's rule ----
+function iqOddVerifyExactlyOneOdd(result){
+  const checkFn = result.family === 'orientation' ? (it => iqOddIsRotationOfBase(it.pts))
+    : result.family === 'ratio' ? (it => it.dots === it.sides - 1)
+    : (it => iqOddRadiiSymmetric(it.radii));
+  let failCount = 0, failIdx = -1;
+  result.items.forEach((it, i) => { if (!checkFn(it)){ failCount++; failIdx = i; } });
+  return failCount === 1 && failIdx === result.oddIndex;
+}
+function iqOddGenerate(tier){
+  // The RULE FAMILY is randomized on every single question - never locked to the
+  // tier - so a run of questions at the same level never repeats the same
+  // underlying logic five times in a row. The tier only scales each family's
+  // OWN internal difficulty knob (see iqOddGen* above), so "same level" still
+  // means "equally hard", just via whichever rule got picked this time.
+  const family = pickOne(['orientation', 'ratio', 'symmetry']);
+  const genFn = family === 'orientation' ? iqOddGenOrientation : family === 'ratio' ? iqOddGenRatio : iqOddGenSymmetry;
+  let result, guard = 0;
+  do { result = genFn(tier); guard++; } while (guard < 10 && !iqOddVerifyExactlyOneOdd(result));
+  return result;
+}
+function iqOddRenderItem(item){
+  if (item.pts) return iqOddRenderPolygon(item.pts, item.color, item.strokeWidth, item.size);
+  if (item.radii) return iqOddRenderBlob(item.radii, item.color, item.strokeWidth, item.size);
+  return iqOddRenderRatioShape(item.sides, item.dots, item.color, item.strokeWidth, item.size);
 }
 
 registerIQCategory({
@@ -454,10 +483,11 @@ registerIQCategory({
   icon: '🧐',
   title: 'מה לא שייך?',
   subtitle: 'מצאו את הצורה השונה',
+  maxTier: 6,
   renderQuestion(tier, promptEl, optionsEl, onAnswer){
-    const { items, oddIndex, explanation } = generateOddOneOut(tier);
+    const { items, oddIndex, explanation } = iqOddGenerate(tier);
     promptEl.innerHTML = '<div class="iq-prompt-text">איזו צורה שונה מהשאר?</div>';
-    const options = items.map((spec, i) => ({ html: renderShapeSVG(spec), isCorrect: i === oddIndex }));
+    const options = items.map((item, i) => ({ html: iqOddRenderItem(item), isCorrect: i === oddIndex }));
     renderIQMultipleChoice(optionsEl, options, (isCorrect) => {
       if (isCorrect){
         document.getElementById('iq-oddone-explanation').textContent = explanation;
@@ -852,48 +882,9 @@ function generateMatrix(tier){
   return Object.assign({ kind: 'latin' }, generateFiveAxisMatrix(5, true));                  // NEW tier 7 (hardest): big + five axes + non-linear rotation
 }
 
-registerIQCategory({
-  key: 'matrix',
-  icon: '🧩',
-  title: 'השלמת הרצף',
-  subtitle: 'מה משלים את הריבוע?',
-  renderQuestion(tier, promptEl, optionsEl, onAnswer){
-    const result = generateMatrix(tier);
-
-    if (result.kind === 'composite'){
-      const { n, A, Aprime, B, correct, distractors } = result;
-      promptEl.innerHTML =
-        '<div class="iq-prompt-label">מה משלים את הריבוע?</div>' +
-        '<div class="iq-matrix-grid" style="grid-template-columns:repeat(2,1fr);">' +
-          '<div class="iq-tile iq-tile-shape iq-matrix-cell">'+renderCompositeSVG(A, n)+'</div>' +
-          '<div class="iq-tile iq-tile-shape iq-matrix-cell">'+renderCompositeSVG(Aprime, n)+'</div>' +
-          '<div class="iq-tile iq-tile-shape iq-matrix-cell">'+renderCompositeSVG(B, n)+'</div>' +
-          '<div class="iq-tile iq-tile-blank iq-matrix-cell">?</div>' +
-        '</div>';
-      const options = [{ html: renderCompositeSVG(correct, n), isCorrect: true }]
-        .concat(distractors.map(d => ({ html: renderCompositeSVG(d, n), isCorrect: false })));
-      renderIQMultipleChoice(optionsEl, options, onAnswer);
-      return;
-    }
-
-    const { grid, N, correct, distractors } = result;
-    let html = '<div class="iq-prompt-label">מה משלים את הריבוע?</div>' +
-      '<div class="iq-matrix-grid" style="grid-template-columns:repeat('+N+',1fr);">';
-    for (let r=0; r<N; r++){
-      for (let c=0; c<N; c++){
-        if (r === N-1 && c === N-1){
-          html += '<div class="iq-tile iq-tile-blank iq-matrix-cell">?</div>';
-        } else {
-          html += '<div class="iq-tile iq-tile-shape iq-matrix-cell">'+renderShapeSVG(grid[r][c])+'</div>';
-        }
-      }
-    }
-    html += '</div>';
-    promptEl.innerHTML = html;
-
-    const safeDistractors = iqSanitizeDistractors(correct, distractors);
-    const options = [{ html: renderShapeSVG(correct), isCorrect: true }]
-      .concat(safeDistractors.map(d => ({ html: renderShapeSVG(d), isCorrect: false })));
-    renderIQMultipleChoice(optionsEl, options, onAnswer);
-  }
-});
+// NOTE: this category is no longer registered here - `matrix` (key) is now
+// registered once, merged, from js/iq-matrix3.js: tiers 1-10 are the hand-authored
+// 3x3 syllabus (iqm3Stage1..10), tiers 11-17 continue into this file's procedural
+// NxN axis-combination engine via generateMatrix(tier-10). The generator
+// functions above (generateMatrix, generateThreeAxisMatrix, etc.) are kept here
+// and called from there.

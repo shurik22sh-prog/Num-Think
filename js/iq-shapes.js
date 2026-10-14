@@ -99,12 +99,35 @@ function iqShapeMarkup(type, cx, cy, r, color){
   }
 }
 
+// Every shape is drawn as a COMPOUND figure of at least two merged elements, never
+// a single flat icon: a large semi-transparent OUTER frame (the shape's own type,
+// held static) with a smaller SOLID inner copy of the same type sunk inside it,
+// independently rotated - so rotation is always read relative to a fixed
+// reference, never in isolation. Non-polygon types (circle/star/arrow) fall back
+// to a circular outer frame around the same rotated inner shape.
+const IQ_TYPE_SIDES = { triangle: 3, square: 4, pentagon: 5, hexagon: 6 };
+
+function iqRichShapeUnit(type, color, rotation, scale, size){
+  const cx = size / 2, cy = size / 2;
+  const sides = IQ_TYPE_SIDES[type];
+  const outerR = size * 0.40 * scale, innerR = size * 0.23 * scale;
+  if (sides){
+    const outerPts = iqPolygonPoints(cx, cy, outerR, sides, -90);
+    const innerPts = iqPolygonPoints(cx, cy, innerR, sides, -90 + rotation);
+    return '<polygon points="'+outerPts+'" fill="'+color+'" fill-opacity="0.14" stroke="'+color+'" stroke-width="3"/>'+
+      '<polygon points="'+innerPts+'" fill="'+color+'" stroke="'+color+'" stroke-width="2.5"/>';
+  }
+  const outer = '<circle cx="'+cx+'" cy="'+cy+'" r="'+outerR+'" fill="'+color+'" fill-opacity="0.14" stroke="'+color+'" stroke-width="3"/>';
+  const inner = '<g transform="rotate('+rotation+' '+cx+' '+cy+')">'+iqShapeMarkup(type, cx, cy, innerR, color)+'</g>';
+  return outer + inner;
+}
+
 // spec: {type, color, rotation, scale, count, size, marker}
 // `marker` draws a small dark dot fixed to the shape (at its "top" before rotation
-// is applied), inside the same rotated group as the shape - so it spins together
-// with it. That single off-center dot has no symmetry of its own, which is what
-// makes an otherwise-symmetric shape's exact rotation readable at a glance. Use
-// marker:true on every spec in any question where rotation is the thing being asked.
+// is applied) - that single off-center dot has no symmetry of its own, which is
+// what makes an otherwise-symmetric shape's exact rotation readable at a glance
+// even before accounting for the nested-shape rendering above. Use marker:true on
+// every spec in any question where rotation is the thing being asked.
 function renderShapeSVG(spec){
   const type = spec.type || 'circle';
   const color = spec.color || IQ_SHAPE_COLORS[0];
@@ -113,32 +136,30 @@ function renderShapeSVG(spec){
   const count = spec.count || 1;
   const size = spec.size || 80;
   const cx = size / 2, cy = size / 2;
-  const baseR = size * 0.32 * scale;
 
   let inner = '';
   if (count <= 1){
-    inner = iqShapeMarkup(type, cx, cy, baseR, color);
-    if (spec.marker){
-      const markerR = size * 0.055;
-      const markerDist = baseR + markerR + 3;
-      inner += '<circle cx="'+cx.toFixed(1)+'" cy="'+(cy - markerDist).toFixed(1)+'" r="'+markerR.toFixed(1)+'" fill="#3A3352"/>';
-    }
+    inner = iqRichShapeUnit(type, color, rotation, scale, size);
   } else {
     // Spacing must shrink as count grows, or shapes drift past the viewBox edges
     // and get silently clipped (invisible) - this keeps every copy on-screen.
-    const maxWidth = size * 0.82;
+    const maxWidth = size * 0.86;
     const gap = maxWidth / count;
-    const smallR = Math.min(baseR * 0.55, gap * 0.42);
-    const totalW = gap * (count - 1);
-    const startX = cx - totalW / 2;
+    const startX = cx - (gap * (count - 1)) / 2;
     for (let i = 0; i < count; i++){
-      inner += iqShapeMarkup(type, startX + i * gap, cy, smallR, color);
+      const dx = (startX + i * gap - cx).toFixed(1);
+      inner += '<g transform="translate('+dx+' 0)">'+iqRichShapeUnit(type, color, rotation, scale * 0.5, size)+'</g>';
     }
   }
+  if (spec.marker && count <= 1){
+    const markerR = size * 0.045;
+    const dist = size * 0.23 * scale + markerR + 3;
+    const rad = (rotation - 90) * Math.PI / 180;
+    const mx = cx + dist * Math.cos(rad), my = cy + dist * Math.sin(rad);
+    inner += '<circle cx="'+mx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="'+markerR.toFixed(1)+'" fill="#3A3352"/>';
+  }
 
-  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+
-    '<g transform="rotate('+rotation+' '+cx+' '+cy+')">'+inner+'</g>'+
-  '</svg>';
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
 }
 
 function iqSpecsEqual(a, b){

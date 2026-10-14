@@ -151,7 +151,7 @@ function buildAllIQScreens(){
     section.className = 'activity-screen hidden';
     section.innerHTML =
       '<div class="activity-topbar">' +
-        '<button class="btn back" data-back="iq-menu">⬅ חזרה לקטגוריות</button>' +
+        '<button class="btn back" data-back="iq-menu">➡ חזרה לקטגוריות</button>' +
         '<span class="activity-title">' + category.icon + ' ' + category.title + '</span>' +
         '<button class="btn reset" data-reset="iq-' + category.key + '">🔄 שאלה חדשה</button>' +
       '</div>' +
@@ -167,7 +167,7 @@ function buildAllIQScreens(){
         '<div class="iq-options" id="iq-' + category.key + '-options"></div>' +
       '</div>' +
       '<div class="iq-explanation" id="iq-' + category.key + '-explanation"></div>' +
-      '<button class="btn iq-next-btn hidden" id="iq-' + category.key + '-next-btn">השאלה הבאה ➡️</button>';
+      '<button class="btn iq-next-btn hidden" id="iq-' + category.key + '-next-btn">השאלה הבאה ⬅️</button>';
     screensRoot.appendChild(section);
 
     registerScreen('iq-' + category.key, section);
