@@ -289,8 +289,14 @@ function iqm3RichShapeSVG(spec){
 function iqm3Stage7(){
   const shapePool = shuffle(IQ_ROTATABLE_SHAPES.slice()).slice(0, 3);
   const colorPool = shuffle(IQ_SHAPE_COLORS.slice()).slice(0, 3);
-  const rotSteps = [150, 40, 120];       // deliberately non-monotonic - not a simple formula
-  const rotStepsLinear = [0, 40, 80];    // the "naive linear" mistake table
+  // The rotation table itself varies every question (not a fixed [150,40,120]
+  // every time) - only its NON-MONOTONIC property (not a simple ascending
+  // formula) is required, which the guard below enforces.
+  const rotStepPool = [20,30,50,60,70,80,100,110,130,140,150,160,170,190,200,220];
+  let rotSteps, guard = 0;
+  do { rotSteps = shuffle(rotStepPool).slice(0, 3); guard++; }
+  while (guard < 20 && rotSteps[0] < rotSteps[1] && rotSteps[1] < rotSteps[2]);
+  const rotStepsLinear = [0, rotSteps[1], rotSteps[1]*2]; // the "naive linear" mistake, reusing the one visible data point
   const kOf = (r, c) => ((r - c) % 3 + 3) % 3;
   const grid = [];
   for (let r = 0; r < 3; r++){
@@ -312,7 +318,8 @@ function iqm3Stage7(){
 
 /* ============ Stage 8 - conditional (if-then) rule: color depends on matching the row's reference type ============ */
 function iqm3Stage8(){
-  const colorMatch = '#06D6A0', colorOther = '#9aa0b4';
+  const colorMatch = pickOne(IQ_SHAPE_COLORS);
+  const colorOther = pickOne(IQ_SHAPE_COLORS.filter(c => c !== colorMatch));
   const typeA = pickOne(IQ_SHAPE_TYPES);
   const typeB = pickOne(IQ_SHAPE_TYPES.filter(t => t !== typeA));
   const typeOf = (r, c) => ((r + c) % 2 === 0) ? typeA : typeB;
@@ -340,7 +347,7 @@ function iqm3Stage8(){
 /* ============ Stage 9 - boolean XOR overlay + an independent frame-color channel (two things to verify at once) ============ */
 function iqm3Stage9(){
   const rowColors = shuffle(IQ_SHAPE_COLORS.slice()).slice(0, 3);
-  const shapeColor = '#3A3352';
+  const shapeColor = pickOne(IQ_SHAPE_COLORS.filter(c => !rowColors.includes(c)));
   const rows = [0, 1, 2].map(() => iqm3OverlayPair(100));
   const shown = [];
   for (let r = 0; r < 3; r++){
