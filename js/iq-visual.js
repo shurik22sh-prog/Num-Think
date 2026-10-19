@@ -2007,7 +2007,8 @@ registerIQCategory({
   maxTier: 6,
   renderQuestion(tier, promptEl, optionsEl, onAnswer){
     const { items, oddIndex, explanation, family } = iqOddGenerate(tier);
-    optionsEl.classList.toggle('iq-options-large', iqOddFamily(family).largeTiles);   // families with fine detail get bigger tiles on wide screens
+    optionsEl.classList.add('iq-options-odd');                                          // bigger pictures that grow with the screen
+    optionsEl.classList.toggle('iq-options-large', iqOddFamily(family).largeTiles);     // families with fine detail get the biggest tiles
     promptEl.innerHTML = '<div class="iq-prompt-text">איזו צורה שונה מהשאר?</div>';
     const options = items.map((item, i) => ({ html: iqOddRenderItem(item), isCorrect: i === oddIndex }));
     renderIQMultipleChoice(optionsEl, options, (isCorrect) => {

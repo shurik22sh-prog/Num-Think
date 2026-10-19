@@ -176,11 +176,11 @@
   animation:pulse 1.2s ease-in-out infinite;
 }
 
-/* Odd-one-out families with fine detail (largeTiles) get bigger tiles on tablet and desktop; phones keep the 60px tile below. */
-@media (min-width:601px){
-  .iq-options.iq-options-large{ max-width:560px; }
-  .iq-options-large .iq-option-btn{ width:120px; height:120px; min-width:120px; }
-}
+/* "What does not belong?": bigger pictures. The tile grows with the screen (never below the old 60px, never above 150px,
+   or 180px for the families with fine detail) and the four tiles always fit in one row. */
+.iq-options.iq-options-odd{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 150px); max-width:800px; }
+.iq-options.iq-options-odd.iq-options-large{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 180px); }
+.iq-options-odd .iq-option-btn{ width:var(--odd-tile); height:var(--odd-tile); min-width:0; padding:4px; }
 
 @media (max-width:600px){
   .iq-tile, .iq-matrix-cell, .iq-option-btn{ width:60px; height:60px; min-width:60px; font-size:22px; }

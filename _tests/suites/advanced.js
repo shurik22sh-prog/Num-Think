@@ -437,21 +437,24 @@ function run(){
     { const { p, r } = gen('combo', 'size-sides', 5); chk('size-sides control', p, r, 'accept'); const x = clone(r); const o = x.items[r.oddIndex], n = x.items[(r.oddIndex + 1) % 4]; o.polys = clone(n.polys); chk('size-sides odd copied from a normal', p, x, 'reject'); }
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : '10 control fixtures accepted, 12 broken fixtures rejected' };
   });
-  test('ADV-N4 tile size: only the advanced, insight and logic families ask for large tiles, the game toggles the class on the options row, and the CSS gives 120px on wide screens only', () => {
+  test('ADV-N4 tile size: every "what does not belong" question gets the growing-tile class, only the detailed families get the biggest tiles, and the CSS keeps four tiles in one row on every screen', () => {
     const fs = require('fs'), path = require('path'), bad = [];
     const p = H.loadProject(), fams = p.evalIn('IQ_ODD_FAMILIES');
-    fams.forEach(f => { if ((f.largeTiles === true) !== !!(PLAN[f.key] || ['solid', 'trace', 'overlay', 'balance', 'induce'].includes(f.key))) bad.push(f.key + ' largeTiles=' + f.largeTiles); });
-    const ask = (pg, tier) => { const prompt = pg.ctx.document.createElement('div'), opts = pg.ctx.document.createElement('div'); pg.evalIn('IQ_CATEGORIES').find(c => c.key === 'oddone').renderQuestion(tier, prompt, opts, () => {}); return opts.classList.contains('iq-options-large'); };
+    const BIG = ['solid', 'trace', 'overlay', 'balance', 'induce'];
+    fams.forEach(f => { if ((f.largeTiles === true) !== !!(PLAN[f.key] || BIG.includes(f.key))) bad.push(f.key + ' largeTiles=' + f.largeTiles); });
+    const classes = (pg, tier) => { const prompt = pg.ctx.document.createElement('div'), opts = pg.ctx.document.createElement('div'); pg.evalIn('IQ_CATEGORIES').find(c => c.key === 'oddone').renderQuestion(tier, prompt, opts, () => {}); return { odd: opts.classList.contains('iq-options-odd'), large: opts.classList.contains('iq-options-large') }; };
     const pa = forced('motion', 'rot-same'); pa.seed(1);
-    if (!ask(pa, 6)) bad.push('advanced question did not get iq-options-large');
-    const pn = H.loadProject(); pn.seed(2); let wrong = 0;
-    for (let i = 0; i < 200; i++) if (ask(pn, 1 + (i % 2))) wrong++;   // levels 1-2: no large-tile family is eligible
+    const a1 = classes(pa, 6); if (!a1.odd || !a1.large) bad.push('advanced question classes ' + JSON.stringify(a1));
+    const pn = H.loadProject(); pn.seed(2); let noOdd = 0, wrong = 0;
+    for (let i = 0; i < 200; i++){ const c = classes(pn, 1 + (i % 2)); if (!c.odd) noOdd++; if (c.large) wrong++; }      // levels 1-2: no large-tile family is eligible
+    if (noOdd) bad.push(noOdd + ' questions without iq-options-odd');
     if (wrong) bad.push(wrong + ' questions on levels 1-2 got iq-options-large');
     const css = fs.readFileSync(path.join(__dirname, '..', '..', 'css', 'iq.css'), 'utf8');
-    const m = /@media \(min-width:601px\)\{([^}]*\}[^}]*)\}/.exec(css);
-    if (!m || !/\.iq-options-large \.iq-option-btn\{[^}]*width:120px;[^}]*height:120px/.test(m[1]) || !/max-width:560px/.test(m[1])) bad.push('wide-screen CSS rule missing or wrong');
-    if (/iq-options-large/.test(css.split('@media (max-width:600px)')[1] || '')) bad.push('phone rule touches the large tiles');
-    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'flag, class toggle (on for advanced, off for 200 questions on levels 1-2) and CSS (4 x 120px + 3 x 14px gaps fit in 560px) ok' };
+    if (!/\.iq-options\.iq-options-odd\{ --odd-tile:clamp\(60px, calc\(\(100vw - 100px\) \/ 4\), 150px\); max-width:800px; \}/.test(css)) bad.push('base tile rule missing or wrong');
+    if (!/iq-options-large\{ --odd-tile:clamp\(60px, calc\(\(100vw - 100px\) \/ 4\), 180px\); \}/.test(css)) bad.push('large tile rule missing or wrong');
+    if (!/\.iq-options-odd \.iq-option-btn\{ width:var\(--odd-tile\); height:var\(--odd-tile\); min-width:0;/.test(css)) bad.push('button size rule missing');
+    // four tiles and three gaps (14px) must fit in the widest allowed row: 4 x 150 + 42 = 642 <= 720
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'class on every question, large only for the detailed families; tiles 60-150px (180px for large) and (screen - 100) / 4 wide, 4 x 180 + 42 fits in 800px' };
   });
   // ----- level 1-3 variety: the 'basic' family, earlier unlocks, no immediate repeats -----
   ['count-sides', 'count-dots', 'size', 'colour-split'].forEach((key, k) => {
