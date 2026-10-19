@@ -3,7 +3,7 @@
 /* ============ Odd one out: family registry & generic dispatch ============ */
 // A "family" is one kind of odd-one-out question (orientation, ratio, symmetry,
 // ...). Each registers { key, generate(tier), verify(result), render(item) }
-// plus optional { minTier, maxTier, enabled, largeTiles }, and everything generic - choosing which
+// plus optional { minTier, maxTier, weight, enabled, largeTiles }, and everything generic - choosing which
 // family to ask, the verify-and-retry loop, rendering an item by its `kind` -
 // lives here, so adding a family never means editing a chain of if/else.
 // Loaded before iq-visual.js, which registers the families.
@@ -16,8 +16,8 @@ const IQ_ODD_FAMILIES = [];
 // Variants, per family: { key, generate(tier), minTier, enabled } (see iqOddRegisterVariants).
 // A family that registers no variants is unaffected by everything below.
 const IQ_ODD_VARIANTS = {};
-// Variety: the next question never uses the family of the previous one, and a family never repeats its
-// previous design, whenever another choice exists. `IQ_ODD_AVOID_REPEAT` can be switched off (tests that
+// Variety: the next question never uses the family of the previous one, families with a small pool of questions are drawn
+// half as often (weight), and a family never repeats its previous design, whenever another choice exists. `IQ_ODD_AVOID_REPEAT` can be switched off (tests that
 // compare seeded sequences with an older build do so inside their sandbox).
 let IQ_ODD_AVOID_REPEAT = true;
 const IQ_ODD_LAST = { family: null, variants: {} };
@@ -34,10 +34,11 @@ function iqOddRegisterFamily(def){
   });
   if ('minTier' in def && !Number.isFinite(def.minTier)) throw new Error('iqOddRegisterFamily "' + def.key + '": "minTier" must be a finite number.');
   if ('maxTier' in def && !(Number.isFinite(def.maxTier) || def.maxTier === Infinity)) throw new Error('iqOddRegisterFamily "' + def.key + '": "maxTier" must be a number.');
+  if ('weight' in def && !(Number.isInteger(def.weight) && def.weight >= 1)) throw new Error('iqOddRegisterFamily "' + def.key + '": "weight" must be a positive integer.');
   if ('enabled' in def && typeof def.enabled !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "enabled" must be a boolean.');
   if ('largeTiles' in def && typeof def.largeTiles !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "largeTiles" must be a boolean.');
   if (IQ_ODD_FAMILIES.some(f => f.key === def.key)) throw new Error('iqOddRegisterFamily: duplicate family "' + def.key + '"');
-  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, maxTier: Infinity, enabled: true, largeTiles: false }, def));
+  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, maxTier: Infinity, weight: 2, enabled: true, largeTiles: false }, def));
 }
 
 // A generator's result must be well-formed BEFORE it is verified: the verifier
@@ -122,7 +123,10 @@ function iqOddGenerate(tier){
   const eligible = IQ_ODD_FAMILIES.filter(f => f.enabled && f.minTier <= tier && tier <= f.maxTier);
   if (!eligible.length) throw new Error('iqOddGenerate: no enabled family for tier ' + tier + '.');
   const fresh = IQ_ODD_AVOID_REPEAT ? eligible.filter(f => f.key !== IQ_ODD_LAST.family) : eligible;
-  const family = pickOne(fresh.length ? fresh : eligible);
+  // `weight` (default 2) is how many tickets a family has in the draw; families whose pool of distinct questions is still
+  // small register weight 1, so they come up about half as often. Switched off together with the no-repeat rule.
+  const pool = fresh.length ? fresh : eligible;
+  const family = pickOne(IQ_ODD_AVOID_REPEAT ? pool.flatMap(f => Array(f.weight).fill(f)) : pool);
   let result, guard = 0;
   do {
     result = family.generate(tier);

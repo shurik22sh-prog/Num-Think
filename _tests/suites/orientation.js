@@ -20,7 +20,7 @@ function test(name, fn){
   catch (e){ out.push({ name, pass: false, info: 'THREW: ' + (e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e) }); }
 }
 const SCALE = Number(process.env.ORI_SAMPLE_SCALE || 1);
-const VARIANTS = [{ key: 'cells-5', cells: 5, minTier: 2, count: 5 }, { key: 'cells-6', cells: 6, minTier: 3, count: 8 }, { key: 'cells-7', cells: 7, minTier: 5, count: 8 }];
+const VARIANTS = [{ key: 'cells-5', cells: 5, minTier: 1, count: 5 }, { key: 'cells-6', cells: 6, minTier: 3, count: 17 }, { key: 'cells-7', cells: 7, minTier: 5, count: 54 }];
 const CELL_PX = 21;                       // viewBox units per cell
 
 // ---------- test-side cell geometry ----------
@@ -91,10 +91,10 @@ function forced(key){
 }
 
 function run(){
-  test('ORI-1 registry: flag and cells-5 / cells-6 / cells-7 are registered ENABLED with minTier 1 / 2 / 3 / 5', () => {
+  test('ORI-1 registry: flag and cells-5 / cells-6 / cells-7 are registered ENABLED with minTier 1 / 1 / 3 / 5', () => {
     const p = H.loadProject(); const reg = p.evalIn('IQ_ODD_VARIANTS').orientation;
     if (!reg) return { pass: false, info: 'no variants registered for orientation' };
-    const want = [['flag', true, 1], ['cells-5', true, 2], ['cells-6', true, 3], ['cells-7', true, 5]];
+    const want = [['flag', true, 1], ['cells-5', true, 1], ['cells-6', true, 3], ['cells-7', true, 5]];
     const bad = [];
     if (reg.map(v => v.key).join() !== want.map(w => w[0]).join()) bad.push('keys ' + reg.map(v => v.key).join());
     want.forEach(([k, en, mt]) => { const v = reg.find(x => x.key === k); if (!v) return bad.push('missing ' + k); if (v.enabled !== en) bad.push(k + ' enabled=' + v.enabled); if (v.minTier !== mt) bad.push(k + ' minTier=' + v.minTier); });
@@ -102,7 +102,7 @@ function run(){
   });
 
   test('ORI-2 shipped settings: orientation asks the flag from tier 1 and each cell variant only from its first tier (3,000 questions)', () => {
-    const p = forced(null); p.seed(4); const first = { flag: 1, 'cells-5': 2, 'cells-6': 3, 'cells-7': 5 }; const seenAt = {}; let early = 0, n = 0;
+    const p = forced(null); p.seed(4); const first = { flag: 1, 'cells-5': 1, 'cells-6': 3, 'cells-7': 5 }; const seenAt = {}; let early = 0, n = 0;
     for (let t = 1; t <= 6; t++) for (let i = 0; i < 500; i++){ const v = p.ctx.iqOddGenerate(t).variant; n++; (seenAt[t] = seenAt[t] || new Set()).add(v); if (!(v in first) || first[v] > t) early++; }
     const missing = []; for (let t = 1; t <= 6; t++) Object.keys(first).filter(k => first[k] <= t).forEach(k => { if (!seenAt[t].has(k)) missing.push(k + '@' + t); });
     return { pass: !early && !missing.length, info: n + ' questions; asked too early or unknown ' + early + '; never reached where due: ' + (missing.join(',') || 'none') };
@@ -118,7 +118,7 @@ function run(){
       const seen = new Set();
       list.forEach((pat, i) => { libraryChecks(pat, v.cells).forEach(e => bad.push(v.cells + '#' + i + ': ' + e)); const c = dihedral(cellsOf(pat)).map(ser).sort()[0]; if (seen.has(c)) bad.push(v.cells + '#' + i + ' duplicates another pattern (same free polyomino)'); seen.add(c); });
     });
-    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'sizes 5/6/7: 5/8/8 patterns, all valid and distinct' };
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'sizes 5/6/7: 5/17/54 patterns (every asymmetric shape that fits 4x4), all valid and distinct' };
   });
 
   VARIANTS.forEach((v, idx) => {
@@ -133,7 +133,7 @@ function run(){
       const lattice = c => { const xs = c.map(q => q[0]), ys = c.map(q => q[1]); const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, cy = (Math.min(...ys) + Math.max(...ys) + 1) / 2; const S = new Set(); for (const [x, y] of c) for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) S.add(Math.round((x + a * 0.5 + 0.25 - cx) * 4) + ',' + Math.round((y + b * 0.5 + 0.25 - cy) * 4)); return S; };
       let expected = 0;
       library.forEach(cs => { const R = dihedral(cs).slice(0, 4).map(lattice), M = dihedral(cs).slice(4).map(lattice); for (let miss = 0; miss < 4; miss++) for (let m = 0; m < 4; m++){ const set = [0, 1, 2, 3].filter(r => r !== miss).map(r => R[r]).concat([M[m]]); let least = Infinity; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) least = Math.min(least, xorShare(set[i], set[j])); if (least >= 0.21 - 1e-9) expected++; } });
-      const keys = new Set(); const N = Math.round(3000 * SCALE); let invalid = 0; const examples = [];
+      const keys = new Set(); const N = Math.round((v.cells === 7 ? 30000 : 3000) * SCALE); let invalid = 0; const examples = [];
       for (let i = 0; i < N; i++){
         const r = p.ctx.iqOddGenerate(v.minTier); keys.add(r.structureKey);
         const a = analyze(p, r); const e = a.errs.slice();

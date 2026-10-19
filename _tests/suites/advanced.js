@@ -226,7 +226,8 @@ function chkRelation(r, key){
     const rs = odd.R.map(ckey).sort().join(';');
     if (rs === subst(odd.L, same) || (rs !== subst(odd.L, cw) && rs !== subst(odd.L, ccw))) e.push('the odd R is not the substitution with turned copies');
     if (new Set(it.map(x => x.L.map(ckey).sort().join(';'))).size !== 4) e.push('patterns repeat');
-    if (it.some(x => x.L.length !== 3 || x.R.length !== 9)) e.push('cell counts');
+    if (it.some(x => ![2, 3].includes(x.L.length) || x.R.length !== x.L.length * x.L.length)) e.push('cell counts');
+    if (lone(it.map(x => x.L.length)) >= 0) e.push('the number of filled cells singles out a picture');
   }
   if (r.explanation !== ({ 'mirror-diag': 'בשלוש הצורות הצורה המלאה היא תמונת ראי מדויקת של הצורה הריקה בקו המקווקו. בצורה שנבחרה היא תמונת ראי שגם הוסתובבה.', 'hull-bbox': 'בשלוש הצורות הצורה המלאה היא המעטפת הקמורה של הצורה הריקה (הצורה הקמורה הקטנה ביותר שמכילה אותה). בצורה שנבחרה היא המלבן החוסם.', 'hull-missing': 'בשלוש הצורות הצורה המלאה עוברת דרך כל קצוות הקוצים של הצורה הריקה. בצורה שנבחרה חסר קצה של קוץ אחד.', 'homothety': 'בשלוש הצורות הצורה המלאה היא הגדלה של הצורה הריקה מהנקודה המסומנת ב-+. בצורה שנבחרה ההגדלה היא מנקודה אחרת.', 'double-mirror': 'בשלוש הצורות הצורה המלאה מתקבלת מהריקה בשיקוף בקו הכחול ואחריו בקו האדום. בצורה שנבחרה הסדר הפוך.', 'self-replace': 'בשלוש הצורות כל משבצת מלאה בדפוס הקטן הוחלפה בעותק שלו. בצורה שנבחרה העותקים מסובבים.' })[key]) e.push('explanation');
   return e;

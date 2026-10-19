@@ -476,13 +476,68 @@ const IQ_ODD_CELL = 12;
 const IQ_ODD_CELL_SHAPES = {
   5: [['####', '#...'], ['####', '.#..'], ['###', '##.'], ['.###', '##..'], ['.#.', '###', '#..']],
   6: [['.###', '##..', '#...'], ['####', '#...', '#...'], ['####', '.#..', '.#..'], ['##..', '.###', '.#..'],
-      ['.###', '##..', '.#..'], ['####', '##..'], ['.#..', '####', '#...'], ['####', '#.#.']],
+      ['.###', '##..', '.#..'], ['####', '##..'], ['.#..', '####', '#...'], ['####', '#.#.'],
+      ['..#.', '####', '#...'],
+      ['##.', '###', '#..'],
+      ['#..', '###', '#.#'],
+      ['..#', '###', '##.'],
+      ['..#.', '.###', '##..'],
+      ['.###', '##.#'],
+      ['...#', '.###', '##..'],
+      ['###', '#..', '##.'],
+      ['.###', '.#..', '##..']],
   7: [['.#..', '####', '#...', '#...'], ['...#', '...#', '.###', '##..'], ['##..', '####', '#...'], ['#...', '#...', '####', '#...'],
-      ['#...', '####', '#.#.'], ['####', '##..', '#...'], ['.#..', '####', '##..'], ['####', '##..', '.#..']]
+      ['#...', '####', '#.#.'], ['####', '##..', '#...'], ['.#..', '####', '##..'], ['####', '##..', '.#..'],
+      ['#...', '####', '#..#'],
+      ['####', '###.'],
+      ['..#.', '####', '##..'],
+      ['####', '##.#'],
+      ['...#', '####', '##..'],
+      ['####', '#...', '##..'],
+      ['####', '#.#.', '#...'],
+      ['..#.', '####', '#...', '#...'],
+      ['####', '#..#', '#...'],
+      ['...#', '####', '#...', '#...'],
+      ['.##.', '####', '#...'],
+      ['.#..', '.#..', '####', '#...'],
+      ['.#..', '####', '#.#.'],
+      ['.#..', '####', '#..#'],
+      ['.#.#', '####', '#...'],
+      ['..#.', '####', '#.#.'],
+      ['####', '#.#.', '..#.'],
+      ['..#.', '..#.', '####', '#...'],
+      ['.##.', '####', '.#..'],
+      ['####', '.##.', '.#..'],
+      ['####', '.#..', '.##.'],
+      ['####', '.#..', '##..'],
+      ['..#.', '####', '.#..', '.#..'],
+      ['###.', '.###', '.#..'],
+      ['.##.', '.###', '##..'],
+      ['###', '###', '#..'],
+      ['##.', '###', '#.#'],
+      ['#...', '##..', '.###', '.#..'],
+      ['##..', '.###', '.#.#'],
+      ['##.#', '.###', '.#..'],
+      ['#...', '###.', '#.##'],
+      ['#..', '###', '#.#', '..#'],
+      ['.###', '###.', '#...'],
+      ['.###', '###.', '.#..'],
+      ['.###', '.##.', '##..'],
+      ['..##', '###.', '##..'],
+      ['..#', '..#', '###', '##.'],
+      ['..#.', '.###', '##..', '#...'],
+      ['.###', '##.#', '#...'],
+      ['...#', '.###', '##..', '#...'],
+      ['.###', '##..', '.##.'],
+      ['.###', '##.#', '.#..'],
+      ['...#', '.###', '##..', '.#..'],
+      ['..#.', '.###', '##.#'],
+      ['.###', '##.#', '...#'],
+      ['..#', '###', '#..', '##.']]
 };
 // variants: key, number of cells, first tier (all enabled; see the registration below).
 const IQ_ODD_ORIENT_CELL_VARIANTS = [
-  { key: 'cells-5', cells: 5, minTier: 2 },
+  { key: 'cells-5', cells: 5, minTier: 1 },
   { key: 'cells-6', cells: 6, minTier: 3 },
   { key: 'cells-7', cells: 7, minTier: 5 }
 ];
@@ -1400,7 +1455,7 @@ function iqOddVerifyNet(result){
 // A shape/dots combination is only usable if every dot marker clears every edge by the
 // full margin and no two markers crowd each other (see iqOddRatioPlacementOk).
 const IQ_ODD_RATIO_MAX_DOTS = 8;
-const IQ_ODD_RATIO_SIDES_MIN = 3, IQ_ODD_RATIO_SIDES_MAX = 7;
+const IQ_ODD_RATIO_SIDES_MIN = 3, IQ_ODD_RATIO_SIDES_MAX = 8;
 // Smallest centre-to-centre distance of two dots: the dot gap of the 4-dots-in-a-triangle
 // ring layout (edge-to-edge 5.435 units), which was reviewed on a phone and accepted.
 const IQ_ODD_RATIO_MIN_CENTER = 13.435;
@@ -1553,16 +1608,16 @@ function iqOddGenRatio(tier){
     structureKey: 'ratio:sides-minus-1-ring:' + items.map(it => it.sides + '/' + it.dots).sort().join(','),
     explanation: iqOddRatioExplanation(-1) };
 }
-// The other variants: the side counts are any 4 of 3..7 (5 ways), the odd option is any of them and its
+// The other variants: the side counts are any 4 of 3..8 (15 ways), the odd option is any of them and its
 // count is the rule value -2, -1, +1 or +2 off. Every such STRUCTURE that passes the placement check
 // (and, for rows, the row-count filter) is enumerated once, and one is picked uniformly.
 const IQ_ODD_RATIO_STRUCTURES = {};
 function iqOddRatioStructures(def){
   if (IQ_ODD_RATIO_STRUCTURES[def.key]) return IQ_ODD_RATIO_STRUCTURES[def.key];
   const usable = (sides, dots) => iqOddRatioPlacementOk({ sides, dots, strokeWidth: 3, size: 100, placement: def.placement });
-  const all = [3, 4, 5, 6, 7], list = [];
-  for (let skip = 0; skip < all.length; skip++){
-    const set = all.filter((_, i) => i !== skip);
+  const all = [3, 4, 5, 6, 7, 8], list = [], sets = [];
+  for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) for (let c = b + 1; c < all.length; c++) for (let d = c + 1; d < all.length; d++) sets.push([all[a], all[b], all[c], all[d]]);
+  for (const set of sets){
     if (!set.every(s => usable(s, s + def.offset))) continue;
     for (const oddSides of set) for (const off of IQ_ODD_RATIO_WRONG_OFFSETS){
       const wrong = oddSides + def.offset + off;
@@ -1870,6 +1925,7 @@ function iqOddVerifySymmetry(result){
 // the previous if/else chain did.
 iqOddRegisterFamily({
   key: 'orientation',
+  weight: 1,                                                             // small pool of distinct questions: drawn half as often
   generate: tier => iqOddPickVariant('orientation', tier).generate(tier),
   verify: result => iqOddVerifyOrientation(result),
   render: item => iqOddRenderPolygon(item.pts, item.color, item.strokeWidth, item.size)
@@ -1879,6 +1935,7 @@ iqOddRegisterVariants('orientation', [
 ].concat(IQ_ODD_ORIENT_CELL_VARIANTS.map(def => ({ key: def.key, minTier: def.minTier, enabled: true, generate: () => iqOddGenCellOrientation(def) }))));
 iqOddRegisterFamily({
   key: 'ratio',
+  weight: 1,                                                             // small pool of distinct questions: drawn half as often
   generate: tier => iqOddPickVariant('ratio', tier).generate(tier),
   verify: result => iqOddVerifyRatio(result),
   render: item => iqOddRenderRatioShape(item.sides, item.dots, item.color, item.strokeWidth, item.size, item.placement)
@@ -1898,6 +1955,7 @@ iqOddRegisterFamily({
 // equal parts (family and variants enabled; each from its own first tier)
 iqOddRegisterFamily({
   key: 'parts',
+  weight: 1,                                                             // small pool of distinct questions: drawn half as often
   minTier: 1,
   generate: tier => iqOddPickVariant('parts', tier).generate(tier),
   verify: result => iqOddVerifyParts(result),

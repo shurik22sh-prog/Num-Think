@@ -7,7 +7,7 @@
 // and the per-question checks read only the rendered SVG (what the child sees).
 //
 // Rules under test (approved plan):
-//   - 4 options, 4 DIFFERENT side counts taken from 3..7, dots per option 1..8, all dots the same radius;
+//   - 4 options, 4 DIFFERENT side counts taken from 3..8, dots per option 1..8, all dots the same radius;
 //   - three "normal" options follow dots = sides + b (b = -2, -1, 0, +1), the odd one does not;
 //   - the odd one's dots = (rule value) + offset, offset in {-2,-1,+1,+2} (new variants; the existing
 //     variant keeps its own policy and tier pools);
@@ -34,13 +34,13 @@ const msgOf = fn => { try { fn(); return null; } catch (e){ return String(e && e
 // raw = structures before the row-count filter, kept = after it (measured with the oracle below and approved in the plan).
 const SPECS = [
   { key: 'sides-minus-1-ring', b: -1, placement: 'ring', minTier: 1, existing: true },
-  { key: 'sides-ring',         b: 0,  placement: 'ring', minTier: 1, raw: 72, kept: 72 },
-  { key: 'sides-minus-1-rows', b: -1, placement: 'rows', minTier: 2, raw: 72, kept: 69 },
+  { key: 'sides-ring',         b: 0,  placement: 'ring', minTier: 1, raw: 200, kept: 200 },
+  { key: 'sides-minus-1-rows', b: -1, placement: 'rows', minTier: 2, raw: 210, kept: 195 },
   { key: 'sides-minus-1-dice', b: -1, placement: 'dice', minTier: 2, raw: 60, kept: 60 },
-  { key: 'sides-rows',         b: 0,  placement: 'rows', minTier: 2, raw: 15, kept: 12 },
-  { key: 'sides-minus-2-ring', b: -2, placement: 'ring', minTier: 3, raw: 68, kept: 68 },
-  { key: 'sides-minus-2-rows', b: -2, placement: 'rows', minTier: 3, raw: 64, kept: 59 },
-  { key: 'sides-minus-2-dice', b: -2, placement: 'dice', minTier: 3, raw: 60, kept: 60 },
+  { key: 'sides-rows',         b: 0,  placement: 'rows', minTier: 2, raw: 68, kept: 56 },
+  { key: 'sides-minus-2-ring', b: -2, placement: 'ring', minTier: 3, raw: 210, kept: 210 },
+  { key: 'sides-minus-2-rows', b: -2, placement: 'rows', minTier: 3, raw: 200, kept: 186 },
+  { key: 'sides-minus-2-dice', b: -2, placement: 'dice', minTier: 3, raw: 170, kept: 170 },
   { key: 'sides-plus-1-ring',  b: 1,  placement: 'ring', minTier: 4, raw: 60, kept: 60 },
   { key: 'sides-plus-1-rows',  b: 1,  placement: 'rows', minTier: 4, raw: 48, kept: 40 }
 ];
@@ -97,8 +97,8 @@ function isolatesByRows(dotsArr, oddIdx){
   const rc = dotsArr.map(rowCountOf), others = rc.filter((_, i) => i !== oddIdx);
   return others.every(v => v === others[0]) && rc[oddIdx] !== others[0];
 }
-const ALL_SIDES = [3, 4, 5, 6, 7];
-const SUBSETS = ALL_SIDES.map((_, skip) => ALL_SIDES.filter((__, i) => i !== skip));
+const ALL_SIDES = [3, 4, 5, 6, 7, 8];
+const SUBSETS = []; for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) for (let c = b + 1; c < 6; c++) for (let d = c + 1; d < 6; d++) SUBSETS.push([ALL_SIDES[a], ALL_SIDES[b], ALL_SIDES[c], ALL_SIDES[d]]);
 const idOf = (sidesArr, dotsArr) => sidesArr.map((s, i) => s + '/' + dotsArr[i]).sort().join(',');
 
 // every structure of a NEW variant: { S, oddSide, w, sides[], dots[], oi, id }
@@ -151,7 +151,7 @@ function analyzeSvgs(svgs, result, spec){
     if (pa.polygons.length !== 1){ e('option ' + i + ': ' + pa.polygons.length + ' polygons'); return; }
     const poly = pa.polygons[0], n = poly.pts.length;
     sides.push(n); dots.push(pa.circles.length);
-    if (n < 3 || n > 7) e('option ' + i + ': ' + n + ' sides');
+    if (n < 3 || n > 8) e('option ' + i + ': ' + n + ' sides');
     if (poly.strokeWidth !== STROKE) e('option ' + i + ': stroke ' + poly.strokeWidth);
     const verts = polyVerts(n);
     if (poly.pts.some((pt, k) => Math.hypot(pt[0] - verts[k][0], pt[1] - verts[k][1]) > 0.08)) e('option ' + i + ': outline is not the regular polygon of radius 36 about (50,50)');
@@ -289,7 +289,7 @@ function run(){
   });
 
   // ---- RAT-4: the oracle itself (pure arithmetic, independent of production) ----
-  test('RAT-4 oracle sanity: structure space per variant before/after the row-count filter equals the approved counts (72/72, 72->69, 60, 15->12, 68, 64->59, 60, 60, 48->40)', () => {
+  test('RAT-4 oracle sanity: structure space per variant before/after the row-count filter equals the approved counts for side counts 3..8 (200, 210->195, 60, 68->56, 210, 200->186, 170, 60, 48->40)', () => {
     const rows = NEW_SPECS.map(s => { const raw = oracleStructures(s, false).length, kept = oracleStructures(s, true).length; return { key: s.key, raw, kept, ok: raw === s.raw && kept === s.kept }; });
     return { pass: rows.every(r => r.ok), info: rows.map(r => r.key + ' ' + r.raw + (r.raw !== r.kept ? '->' + r.kept : '') + (r.ok ? '' : ' (UNEXPECTED)')).join(' | ') };
   });

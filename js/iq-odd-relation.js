@@ -158,7 +158,12 @@ function iqRelHomothetyHolds(item){
 }
 
 // ----- 2x2 pattern replaced by copies of itself -----
-const IQ_REL_PATTERNS = [[[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [1, 1]], [[0, 0], [0, 1], [1, 1]], [[1, 0], [0, 1], [1, 1]]];
+// every pattern of 2 or 3 of the 4 cells of a 2x2 block (6 + 4); a quarter-turn of a copy always changes it
+const IQ_REL_PATTERNS = (() => {
+  const cells = [[0, 0], [1, 0], [0, 1], [1, 1]], out = [];
+  for (let m = 1; m < 16; m++){ const pat = cells.filter((_, i) => m & (1 << i)); if (pat.length === 2 || pat.length === 3) out.push(pat); }
+  return out;
+})();
 const iqRelTurnCell = ([x, y], cw) => (cw ? [1 - y, x] : [y, 1 - x]);        // a quarter-turn of one cell inside a 2x2 block
 function iqRelReplace(pattern, copyTurn){                                  // copyTurn: null | 'cw' | 'ccw'
   const copy = copyTurn ? pattern.map(c => iqRelTurnCell(c, copyTurn === 'cw')) : pattern;
@@ -168,9 +173,14 @@ function iqRelReplace(pattern, copyTurn){                                  // co
 }
 const iqRelCellKey = cells => cells.map(c => c[0] + ',' + c[1]).sort().join(';');
 function iqRelGenSelfReplace(){
-  const fill = pickOne(IQ_REL_FILLS), oddIndex = randInt(0, 3), patterns = shuffle(IQ_REL_PATTERNS.map(p => p.map(c => c.slice()))), turn = Math.random() < 0.5 ? 'cw' : 'ccw';
-  const items = patterns.map((pat, i) => iqRelItem('grid', fill, { L: pat, R: iqRelReplace(pat, i === oddIndex ? turn : null) }));
-  return { items, oddIndex, family: 'relation', variant: 'self-replace', structureKey: 'relation:self-replace', explanation: iqRelVariant('self-replace').explanation };
+  for (let attempt = 0; attempt < 200; attempt++){
+    const patterns = shuffle(IQ_REL_PATTERNS.map(p => p.map(c => c.slice()))).slice(0, 4);
+    if (!iqAdvNoLone(patterns.map(p => p.length))) continue;                                  // the number of filled cells must not single out a picture
+    const fill = pickOne(IQ_REL_FILLS), oddIndex = randInt(0, 3), turn = Math.random() < 0.5 ? 'cw' : 'ccw';
+    const items = patterns.map((pat, i) => iqRelItem('grid', fill, { L: pat, R: iqRelReplace(pat, i === oddIndex ? turn : null) }));
+    return { items, oddIndex, family: 'relation', variant: 'self-replace', structureKey: 'relation:self-replace', explanation: iqRelVariant('self-replace').explanation };
+  }
+  throw new Error('iqRelGenSelfReplace: no valid question.');
 }
 
 // ----- question generators -----
@@ -268,7 +278,7 @@ function iqRelItemShape(item, def){
   const poly = P => Array.isArray(P) && P.length >= 3 && P.every(pt);
   if (def.key === 'self-replace'){
     const cells = (C, n) => Array.isArray(C) && C.every(c => Array.isArray(c) && c.length === 2 && c.every(v => Number.isInteger(v) && v >= 0 && v < n));
-    return item.figure === 'grid' && cells(item.L, 2) && cells(item.R, 4) && item.L.length === 3 && item.R.length === 9;
+    return item.figure === 'grid' && cells(item.L, 2) && cells(item.R, 4) && (item.L.length === 2 || item.L.length === 3) && item.R.length === item.L.length * item.L.length;
   }
   if (!poly(item.L) || !poly(item.R) || !iqRelInTile(item.L) || !iqRelInTile(item.R)) return false;
   if (def.key === 'mirror-diag') return item.figure === 'mirror' && Array.isArray(item.line) && item.line.length === 2 && item.line.every(pt);
@@ -329,7 +339,7 @@ function iqRelVerify(result){
   // self-replace
   const correct = it => iqRelCellKey(iqRelReplace(it.L, null));
   if (!iqOddExactlyOneBreaks(result, it => iqRelCellKey(it.R) === correct(it))) return false;
-  if (new Set(items.map(it => iqRelCellKey(it.L))).size !== 4) return false;
+  if (new Set(items.map(it => iqRelCellKey(it.L))).size !== 4 || !iqAdvNoLone(items.map(it => it.L.length))) return false;
   const k = iqRelCellKey(odd.R);
   return k === iqRelCellKey(iqRelReplace(odd.L, 'cw')) || k === iqRelCellKey(iqRelReplace(odd.L, 'ccw'));
 }
