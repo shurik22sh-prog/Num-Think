@@ -235,7 +235,7 @@ function run(opts){
   test('R6 scope: production changes since the reference are confined to the odd-one-out work (iq-visual.js oddone section, iq-odd-core.js, the new iq-odd-*.js files, index.html script tags, one added iq.css block)', () => {
     const changed = git(['diff', '--name-only', ref]).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
     const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
-    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css', 'js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'], allowedNew = ['js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'];
+    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css', 'js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js'], allowedNew = ['js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js'];
     const okChanged = changed.every(f => allowedChanged.includes(f));
     const okNew = untracked.every(f => allowedNew.includes(f));
     // hunks of iq-visual.js must all fall inside the oddone section of the REFERENCE file
@@ -262,7 +262,7 @@ function run(opts){
     const unknownKind = throwsOn(() => N.ctx.iqOddRenderItem({ kind: 'nope' }));
     const noKind = throwsOn(() => N.ctx.iqOddRenderItem({ sides: 3, dots: 2 }));
     const unknownFamily = throwsOn(() => N.ctx.iqOddVerifyExactlyOneOdd({ family: 'nope', items: [] }));
-    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:1:true', 'props:3:true', 'topology:1:true', 'stack:4:true', 'net:4:true', 'basic:1:true', 'motion:4:true', 'relation:4:true', 'assembly:4:true', 'combo:4:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
+    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:1:true', 'props:3:true', 'topology:1:true', 'stack:4:true', 'net:4:true', 'basic:1:true', 'motion:4:true', 'relation:4:true', 'assembly:4:true', 'combo:4:true', 'solid:4:true', 'trace:3:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
     return { pass: JSON.stringify(fams) === JSON.stringify(exp) && dupe && missing && unknownKind && noKind && unknownFamily,
       info: fams.join(' ') + ' | duplicate/missing/unknown-kind/no-kind/unknown-family all throw: ' + [dupe, missing, unknownKind, noKind, unknownFamily] };
   });

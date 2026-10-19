@@ -437,21 +437,21 @@ function run(){
     { const { p, r } = gen('combo', 'size-sides', 5); chk('size-sides control', p, r, 'accept'); const x = clone(r); const o = x.items[r.oddIndex], n = x.items[(r.oddIndex + 1) % 4]; o.polys = clone(n.polys); chk('size-sides odd copied from a normal', p, x, 'reject'); }
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : '10 control fixtures accepted, 12 broken fixtures rejected' };
   });
-  test('ADV-N4 tile size: only the four advanced families ask for large tiles, the game toggles the class on the options row, and the CSS gives 120px on wide screens only', () => {
+  test('ADV-N4 tile size: only the advanced, solid and trace families ask for large tiles, the game toggles the class on the options row, and the CSS gives 120px on wide screens only', () => {
     const fs = require('fs'), path = require('path'), bad = [];
     const p = H.loadProject(), fams = p.evalIn('IQ_ODD_FAMILIES');
-    fams.forEach(f => { if ((f.largeTiles === true) !== !!PLAN[f.key]) bad.push(f.key + ' largeTiles=' + f.largeTiles); });
+    fams.forEach(f => { if ((f.largeTiles === true) !== !!(PLAN[f.key] || f.key === 'solid' || f.key === 'trace')) bad.push(f.key + ' largeTiles=' + f.largeTiles); });
     const ask = (pg, tier) => { const prompt = pg.ctx.document.createElement('div'), opts = pg.ctx.document.createElement('div'); pg.evalIn('IQ_CATEGORIES').find(c => c.key === 'oddone').renderQuestion(tier, prompt, opts, () => {}); return opts.classList.contains('iq-options-large'); };
     const pa = forced('motion', 'rot-same'); pa.seed(1);
     if (!ask(pa, 6)) bad.push('advanced question did not get iq-options-large');
     const pn = H.loadProject(); pn.seed(2); let wrong = 0;
-    for (let i = 0; i < 200; i++) if (ask(pn, 1 + (i % 3))) wrong++;   // tiers 1-3: no advanced family is eligible
-    if (wrong) bad.push(wrong + ' questions on tiers 1-3 got iq-options-large');
+    for (let i = 0; i < 200; i++) if (ask(pn, 1 + (i % 2))) wrong++;   // levels 1-2: no large-tile family is eligible
+    if (wrong) bad.push(wrong + ' questions on levels 1-2 got iq-options-large');
     const css = fs.readFileSync(path.join(__dirname, '..', '..', 'css', 'iq.css'), 'utf8');
     const m = /@media \(min-width:601px\)\{([^}]*\}[^}]*)\}/.exec(css);
     if (!m || !/\.iq-options-large \.iq-option-btn\{[^}]*width:120px;[^}]*height:120px/.test(m[1]) || !/max-width:560px/.test(m[1])) bad.push('wide-screen CSS rule missing or wrong');
     if (/iq-options-large/.test(css.split('@media (max-width:600px)')[1] || '')) bad.push('phone rule touches the large tiles');
-    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'flag, class toggle (on for advanced, off for 200 questions on tiers 1-3) and CSS (4 x 120px + 3 x 14px gaps fit in 560px) ok' };
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'flag, class toggle (on for advanced, off for 200 questions on levels 1-2) and CSS (4 x 120px + 3 x 14px gaps fit in 560px) ok' };
   });
   // ----- level 1-3 variety: the 'basic' family, earlier unlocks, no immediate repeats -----
   ['count-sides', 'count-dots', 'size', 'colour-split'].forEach((key, k) => {
@@ -498,10 +498,10 @@ function run(){
     }
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'families per level: ' + [1, 2, 3, 4, 5, 6].map(t => fams[t].size).join(',') + ' | no repeats' };
   });
-  test('ADV-V2 unlock levels: level 1 now draws on 6 families (orientation, ratio, symmetry, parts, topology, basic); basic stops after level 3; level 4 draws on 12 (basic is not one of them)', () => {
+  test('ADV-V2 unlock levels: level 1 now draws on 6 families (orientation, ratio, symmetry, parts, topology, basic); basic stops after level 3; level 4 draws on 14 (basic is not one of them)', () => {
     const p = H.loadProject(); p.seed(32); const bad = [], at = {};
     for (let t = 1; t <= 6; t++){ at[t] = new Set(); for (let i = 0; i < 600; i++) at[t].add(p.ctx.iqOddGenerate(t).family); }
-    const want = { 1: 'basic,orientation,parts,ratio,symmetry,topology', 4: 'assembly,combo,motion,net,orientation,parts,props,ratio,relation,stack,symmetry,topology' };
+    const want = { 1: 'basic,orientation,parts,ratio,symmetry,topology', 4: 'assembly,combo,motion,net,orientation,parts,props,ratio,relation,solid,stack,symmetry,topology,trace' };
     if ([...at[1]].sort().join() !== want[1]) bad.push('level 1: ' + [...at[1]].sort().join());
     if ([...at[4]].sort().join() !== want[4]) bad.push('level 4: ' + [...at[4]].sort().join());
     [4, 5, 6].forEach(t => { if (at[t].has('basic')) bad.push('basic asked at level ' + t); });

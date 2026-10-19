@@ -13,6 +13,7 @@
 //   node _tests/run.js stack                         focused tests of the stacking-order family (overlaps, visibility, neighbouring-layer swap)
 //   node _tests/run.js net                           focused tests of the network family (ring vs ring-with-stub, same links in different layouts)
 //   node _tests/run.js advanced                      focused tests of the four advanced families (motion, relation, assembly, combo): rules re-derived from the data, SVG sanity, tier gating, must-reject fixtures
+//   node _tests/run.js insight                       focused tests of the cube-views and one-stroke families (rules re-derived from the rendered SVG, level gating, must-reject fixtures)
 //   node _tests/run.js baseline [--n=20000] [--seed=1] [--dom=300]
 //                                                    measure the real game and COMPARE with the stored baseline
 //   node _tests/run.js all                           selftest, regression, variants, symmetry, ratio, then baseline (the normal full run)
@@ -175,6 +176,18 @@ function printAdvanced(){
   summary.push('advanced: ' + passed + '/' + res.length + ' passed' + (passed === res.length ? '' : '  <-- FAILURES'));
 }
 
+function printInsight(){
+  const S = require('./suites/insight');
+  const res = S.run();
+  console.log('\n=== INSIGHT FAMILIES ===');
+  for (const t of res){
+    console.log((t.pass ? 'PASS ' : 'FAIL ') + t.name + (t.info ? '\n       ' + t.info : ''));
+    if (!t.pass) failed = true;
+  }
+  const passed = res.filter(t => t.pass).length;
+  summary.push('insight: ' + passed + '/' + res.length + ' passed' + (passed === res.length ? '' : '  <-- FAILURES'));
+}
+
 function printBaseline(){
   const B = require('./suites/baseline');
   const report = B.run({ n, seed, domN });
@@ -232,8 +245,9 @@ if (cmd === 'topology' || cmd === 'all') printTopology();
 if (cmd === 'stack' || cmd === 'all') printStack();
 if (cmd === 'net' || cmd === 'all') printNet();
 if (cmd === 'advanced' || cmd === 'all') printAdvanced();
+if (cmd === 'insight' || cmd === 'all') printInsight();
 if (cmd === 'baseline' || cmd === 'all') printBaseline();
-if (!['selftest', 'regression', 'variants', 'symmetry', 'ratio', 'orientation', 'parts', 'props', 'topology', 'stack', 'net', 'advanced', 'baseline', 'all'].includes(cmd)){ console.log('unknown command ' + cmd); failed = true; }
+if (!['selftest', 'regression', 'variants', 'symmetry', 'ratio', 'orientation', 'parts', 'props', 'topology', 'stack', 'net', 'advanced', 'insight', 'baseline', 'all'].includes(cmd)){ console.log('unknown command ' + cmd); failed = true; }
 
 console.log('\n=== SUMMARY (' + cmd + ') ===');
 summary.forEach(s => console.log(s));
