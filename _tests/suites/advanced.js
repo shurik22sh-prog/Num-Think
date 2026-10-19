@@ -452,6 +452,60 @@ function run(){
     if (/iq-options-large/.test(css.split('@media (max-width:600px)')[1] || '')) bad.push('phone rule touches the large tiles');
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'flag, class toggle (on for advanced, off for 200 questions on tiers 1-3) and CSS (4 x 120px + 3 x 14px gaps fit in 560px) ok' };
   });
+  // ----- level 1-3 variety: the 'basic' family, earlier unlocks, no immediate repeats -----
+  ['count-sides', 'count-dots', 'size', 'colour-split'].forEach((key, k) => {
+    const minTier = key === 'colour-split' ? 2 : 1;
+    test('ADV-B' + (k + 1) + ' basic/' + key + ': ' + N + ' questions, property read back from the rendered SVG, tier-gated (levels ' + minTier + '-3)', () => {
+      const bad = [], p = forced('basic', key); p.seed(900 + k);
+      for (let t = 1; t <= 6; t++){ let m = null; try { p.ctx.iqOddGenerate(t); } catch (x){ m = String(x.message); } const should = t >= minTier && t <= 3; if (should && m) bad.push('tier ' + t + ': ' + m); if (!should && !(m && /no enabled (variant|family)/.test(m))) bad.push('tier ' + t + ' should be refused'); }
+      let invalid = 0; const seenCols = new Set(); let ex = null;
+      for (let i = 0; i < N; i++){
+        const r = p.ctx.iqOddGenerate(minTier), svgs = r.items.map(it => p.ctx.iqOddRenderItem(it)), errs = [];
+        svgs.forEach(sv => { svgErrors(sv).forEach(e => errs.push(e)); });
+        const vals = svgs.map(sv => {
+          const circles = [...sv.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="([^"]+)"/g)], poly = /<polygon points="([^"]*)"/.exec(sv);
+          if (key === 'count-sides') return circles.length ? 0 : poly[1].trim().split(' ').length;
+          if (key === 'size') return circles.length ? Math.round(+circles[0][3]) : Math.round(Math.max(...poly[1].trim().split(' ').map(q => { const [a, b] = q.split(',').map(Number); return Math.hypot(a - 50, b - 50); })));
+          if (key === 'count-dots') return circles.length;
+          const m = {}; circles.forEach(c => { m[c[4]] = (m[c[4]] || 0) + 1; }); return Object.values(m).sort((a, b) => a - b).join(':');
+        });
+        const idx = lone(vals);
+        if (idx !== r.oddIndex) errs.push('rendered values ' + vals.join('|') + ' do not single out picture ' + r.oddIndex);
+        if (key === 'count-sides' && (vals.some(v => v < 3 || v > 6) || Math.abs(vals[r.oddIndex] - vals[(r.oddIndex + 1) % 4]) < 2)) errs.push('side counts');
+        if (key === 'count-dots' && (vals.some(v => v < 2 || v > 7) || Math.abs(vals[r.oddIndex] - vals[(r.oddIndex + 1) % 4]) < 2)) errs.push('dot counts');
+        if (key === 'size' && Math.max(vals[r.oddIndex], vals[(r.oddIndex + 1) % 4]) / Math.min(vals[r.oddIndex], vals[(r.oddIndex + 1) % 4]) < 1.5) errs.push('size ratio');
+        if (key === 'colour-split' && (vals.filter(v => v === '2:4').length !== 3 || !['3:3', '1:5'].includes(vals[r.oddIndex]))) errs.push('split ' + vals.join('|'));
+        if (errs.length){ invalid++; ex = ex || errs[0]; }
+        r.items.forEach(it => { if (it.color) seenCols.add(it.color); });
+      }
+      if (invalid) bad.push(invalid + ' invalid, e.g. ' + ex);
+      return { pass: !bad.length, info: N + ' questions | colours seen ' + seenCols.size + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+    });
+  });
+  test('ADV-V1 variety: the next question never uses the previous family, and a family never repeats its previous design (6 levels x 1,500 questions)', () => {
+    const p = H.loadProject(); p.seed(31); const bad = []; const fams = {};
+    for (let t = 1; t <= 6; t++){
+      p.evalIn('IQ_ODD_LAST.family = null; IQ_ODD_LAST.variants = {}');
+      let prev = null; const lastVar = {}; let sameFam = 0, sameVar = 0, total = 0;
+      for (let i = 0; i < 1500; i++){
+        const r = p.ctx.iqOddGenerate(t); total++; fams[t] = fams[t] || new Set(); fams[t].add(r.family);
+        if (r.family === prev) sameFam++;
+        if (r.variant && lastVar[r.family] === r.variant && p.evalIn("(IQ_ODD_VARIANTS['" + r.family + "'] || []).filter(v => v.enabled && v.minTier <= " + t + ").length") > 1) sameVar++;
+        prev = r.family; if (r.variant) lastVar[r.family] = r.variant;
+      }
+      if (sameFam || sameVar) bad.push('level ' + t + ': same family twice ' + sameFam + ', same design twice ' + sameVar);
+    }
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'families per level: ' + [1, 2, 3, 4, 5, 6].map(t => fams[t].size).join(',') + ' | no repeats' };
+  });
+  test('ADV-V2 unlock levels: level 1 now draws on 6 families (orientation, ratio, symmetry, parts, topology, basic); basic stops after level 3; level 4 draws on 12 (basic is not one of them)', () => {
+    const p = H.loadProject(); p.seed(32); const bad = [], at = {};
+    for (let t = 1; t <= 6; t++){ at[t] = new Set(); for (let i = 0; i < 600; i++) at[t].add(p.ctx.iqOddGenerate(t).family); }
+    const want = { 1: 'basic,orientation,parts,ratio,symmetry,topology', 4: 'assembly,combo,motion,net,orientation,parts,props,ratio,relation,stack,symmetry,topology' };
+    if ([...at[1]].sort().join() !== want[1]) bad.push('level 1: ' + [...at[1]].sort().join());
+    if ([...at[4]].sort().join() !== want[4]) bad.push('level 4: ' + [...at[4]].sort().join());
+    [4, 5, 6].forEach(t => { if (at[t].has('basic')) bad.push('basic asked at level ' + t); });
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'level 1: ' + [...at[1]].sort().join(',') + ' | level 4+: ' + at[4].size + ' families, none of them basic' };
+  });
   return out;
 }
 

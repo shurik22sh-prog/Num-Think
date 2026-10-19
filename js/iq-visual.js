@@ -698,7 +698,7 @@ function iqOddCircleCross(rotDeg, chordOffset){                 // vertical diam
 // ----- the catalog: per variant, the equal drawings (id, cut family) and the odd options (family + levels) -----
 const IQ_ODD_PARTS_T2 = [0.22, 0.30, 0.36, 0.64, 0.70, 0.78];  // where one cut sits instead of 0.5 (pieces 0.28 .. 0.56 of each other)
 const IQ_ODD_PARTS_VARIANTS = [
-  { key: 'square-2', n: 2, whole: 'square', minTier: 2,
+  { key: 'square-2', n: 2, whole: 'square', minTier: 1,
     equal: [
       { id: 'v', family: 'v', pieces: () => iqOddSqStrips('v', [0.5]) },
       { id: 'h', family: 'h', pieces: () => iqOddSqStrips('h', [0.5]) },
@@ -1080,7 +1080,7 @@ function iqOddRenderBeads(item){
 const IQ_ODD_TOPO_VARIANTS = [
   { key: 'hole-missing', minTier: 3, kind: 'cells', normalHoles: 1, oddHoles: [0],
     explanation: 'בשלוש הצורות יש חור סגור - בצורה שנבחרה אין חור סגור.' },
-  { key: 'hole-extra', minTier: 2, kind: 'cells', normalHoles: 0, oddHoles: [1],
+  { key: 'hole-extra', minTier: 1, kind: 'cells', normalHoles: 0, oddHoles: [1],
     explanation: 'בשלוש הצורות אין חור סגור - בצורה שנבחרה יש חור סגור.' },
   { key: 'chain', minTier: 3, kind: 'beads',
     explanation: 'בשלוש הצורות כל החרוזים מחוברים לשרשרת אחת - בצורה שנבחרה השרשרת שבורה לשני חלקים.' }
@@ -1898,7 +1898,7 @@ iqOddRegisterFamily({
 // equal parts (family and variants enabled; each from its own first tier)
 iqOddRegisterFamily({
   key: 'parts',
-  minTier: 2,
+  minTier: 1,
   generate: tier => iqOddPickVariant('parts', tier).generate(tier),
   verify: result => iqOddVerifyParts(result),
   render: item => iqOddRenderParts(item)
@@ -1916,7 +1916,7 @@ iqOddRegisterVariants('props', IQ_ODD_PROPS_VARIANTS.map(def => ({ key: def.key,
 // topology (holes / chains)
 iqOddRegisterFamily({
   key: 'topology',
-  minTier: 2,
+  minTier: 1,
   generate: tier => iqOddPickVariant('topology', tier).generate(tier),
   verify: result => iqOddVerifyTopology(result),
   render: item => iqOddRenderTopology(item)

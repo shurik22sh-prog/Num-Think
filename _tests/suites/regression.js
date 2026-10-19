@@ -31,9 +31,12 @@ const oddCat = p => p.evalIn('IQ_CATEGORIES').find(c => c.key === 'oddone');
 const rotD = (pts, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return pts.map(([x, y]) => [x * c - y * s, x * s + y * c]); };
 const mirD = pts => pts.map(([x, y]) => [-x, y]);
 
+// The current build WITHOUT the "do not repeat the previous family/design" rule, so that seeded sequences can still be compared with the frozen reference.
+function plainBuild(){ const p = H.loadProject(); p.evalIn('IQ_ODD_AVOID_REPEAT = false'); return p; }
+
 function run(opts){
   const n = opts.n, seed = opts.seed, domN = Math.min(opts.domN, 300), ref = opts.ref || REF;
-  const O = H.loadProject({ ref }), N = H.loadProject();
+  const O = H.loadProject({ ref }), N = plainBuild();
 
   // Step 3 changed the symmetry generator, which consumes a different amount of randomness, so a whole
   // seeded SEQUENCE of mixed families can no longer match the reference after the first symmetry
@@ -51,7 +54,7 @@ function run(opts){
       return orig(arr);
     };
   };
-  const forcedPair = key => { const o = H.loadProject({ ref }), nw = H.loadProject(); forceFamily(o, key); forceFamily(nw, key); return { O: o, N: nw }; };
+  const forcedPair = key => { const o = H.loadProject({ ref }), nw = plainBuild(); forceFamily(o, key); forceFamily(nw, key); return { O: o, N: nw }; };
   const UNCHANGED = ['orientation', 'ratio'];
 
   // ---- R1: unchanged families: same seed -> identical questions, SVG, and randomness consumed ----
@@ -76,7 +79,7 @@ function run(opts){
     return { pass: !bad.result && !bad.svg && !bad.rng && !bad.newFields, info: total + ' questions, families ' + JSON.stringify(fam) + ', mismatches ' + JSON.stringify(bad) + (firstBad ? ' first: ' + JSON.stringify(firstBad) : '') };
   });
   test('R1b family selection unchanged: for the same seed both builds pick the same family first (3,000 seeds x 6 tiers; only the pick is compared, symmetry questions differ afterwards by design)', () => {
-    const o = H.loadProject({ ref }), nw = H.loadProject(); let bad = 0, total = 0; const fam = {};
+    const o = H.loadProject({ ref }), nw = plainBuild(); let bad = 0, total = 0; const fam = {};
     nw.evalIn('IQ_ODD_FAMILIES').forEach(f => { if (!['orientation', 'ratio', 'symmetry'].includes(f.key)) f.enabled = false; });     // the reference only has the three original families
     for (let tier = 1; tier <= 6; tier++) for (let s = 1; s <= 3000; s++){
       o.seed(s * 17 + tier); nw.seed(s * 17 + tier);
@@ -205,8 +208,8 @@ function run(opts){
       try { res = p.ctx.iqOddGenerate(3); } catch (e){ msg = e.message; }
       return JSON.stringify({ gens, vcalls, msg, family: res && res.family, rng: nextRandom(p) });
     };
-    const a1 = drive(H.loadProject({ ref }), Infinity), b1 = drive(H.loadProject(), Infinity);
-    const a2 = drive(H.loadProject({ ref }), 4), b2 = drive(H.loadProject(), 4);
+    const a1 = drive(H.loadProject({ ref }), Infinity), b1 = drive(plainBuild(), Infinity);
+    const a2 = drive(H.loadProject({ ref }), 4), b2 = drive(plainBuild(), 4);
     return { pass: a1 === b1 && a2 === b2, info: 'always-fail: ' + b1 + ' | fail-4-then-pass: ' + b2 };
   });
 
@@ -232,7 +235,7 @@ function run(opts){
   test('R6 scope: production changes since the reference are confined to the odd-one-out work (iq-visual.js oddone section, iq-odd-core.js, the new iq-odd-*.js files, index.html script tags, one added iq.css block)', () => {
     const changed = git(['diff', '--name-only', ref]).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
     const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
-    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css'], allowedNew = ['js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'];
+    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css', 'js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'], allowedNew = ['js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'];
     const okChanged = changed.every(f => allowedChanged.includes(f));
     const okNew = untracked.every(f => allowedNew.includes(f));
     // hunks of iq-visual.js must all fall inside the oddone section of the REFERENCE file
@@ -259,12 +262,12 @@ function run(opts){
     const unknownKind = throwsOn(() => N.ctx.iqOddRenderItem({ kind: 'nope' }));
     const noKind = throwsOn(() => N.ctx.iqOddRenderItem({ sides: 3, dots: 2 }));
     const unknownFamily = throwsOn(() => N.ctx.iqOddVerifyExactlyOneOdd({ family: 'nope', items: [] }));
-    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:2:true', 'props:3:true', 'topology:2:true', 'stack:4:true', 'net:4:true', 'motion:4:true', 'relation:4:true', 'assembly:4:true', 'combo:4:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
+    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:1:true', 'props:3:true', 'topology:1:true', 'stack:4:true', 'net:4:true', 'basic:1:true', 'motion:4:true', 'relation:4:true', 'assembly:4:true', 'combo:4:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
     return { pass: JSON.stringify(fams) === JSON.stringify(exp) && dupe && missing && unknownKind && noKind && unknownFamily,
       info: fams.join(' ') + ' | duplicate/missing/unknown-kind/no-kind/unknown-family all throw: ' + [dupe, missing, unknownKind, noKind, unknownFamily] };
   });
   test('R8 tier gating and disabling: a disabled or higher-tier family is never picked', () => {
-    const p = H.loadProject();
+    const p = plainBuild();
     p.seed(9);
     const fams = p.evalIn('IQ_ODD_FAMILIES');
     fams.forEach(f => { if (!['orientation', 'ratio', 'symmetry'].includes(f.key)) f.enabled = false; });     // isolate the three original families

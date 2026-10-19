@@ -3,7 +3,7 @@
 /* ============ Odd one out: family registry & generic dispatch ============ */
 // A "family" is one kind of odd-one-out question (orientation, ratio, symmetry,
 // ...). Each registers { key, generate(tier), verify(result), render(item) }
-// plus optional { minTier, enabled, largeTiles }, and everything generic - choosing which
+// plus optional { minTier, maxTier, enabled, largeTiles }, and everything generic - choosing which
 // family to ask, the verify-and-retry loop, rendering an item by its `kind` -
 // lives here, so adding a family never means editing a chain of if/else.
 // Loaded before iq-visual.js, which registers the families.
@@ -16,6 +16,11 @@ const IQ_ODD_FAMILIES = [];
 // Variants, per family: { key, generate(tier), minTier, enabled } (see iqOddRegisterVariants).
 // A family that registers no variants is unaffected by everything below.
 const IQ_ODD_VARIANTS = {};
+// Variety: the next question never uses the family of the previous one, and a family never repeats its
+// previous design, whenever another choice exists. `IQ_ODD_AVOID_REPEAT` can be switched off (tests that
+// compare seeded sequences with an older build do so inside their sandbox).
+let IQ_ODD_AVOID_REPEAT = true;
+const IQ_ODD_LAST = { family: null, variants: {} };
 
 // Registration is checked once, at load time, so a malformed family fails loudly
 // there instead of silently never being asked (or crashing on a child's screen).
@@ -28,10 +33,11 @@ function iqOddRegisterFamily(def){
     if (typeof def[field] !== 'function') throw new Error('iqOddRegisterFamily "' + def.key + '": "' + field + '" must be a function.');
   });
   if ('minTier' in def && !Number.isFinite(def.minTier)) throw new Error('iqOddRegisterFamily "' + def.key + '": "minTier" must be a finite number.');
+  if ('maxTier' in def && !(Number.isFinite(def.maxTier) || def.maxTier === Infinity)) throw new Error('iqOddRegisterFamily "' + def.key + '": "maxTier" must be a number.');
   if ('enabled' in def && typeof def.enabled !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "enabled" must be a boolean.');
   if ('largeTiles' in def && typeof def.largeTiles !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "largeTiles" must be a boolean.');
   if (IQ_ODD_FAMILIES.some(f => f.key === def.key)) throw new Error('iqOddRegisterFamily: duplicate family "' + def.key + '"');
-  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, enabled: true, largeTiles: false }, def));
+  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, maxTier: Infinity, enabled: true, largeTiles: false }, def));
 }
 
 // A generator's result must be well-formed BEFORE it is verified: the verifier
@@ -97,7 +103,9 @@ function iqOddPickVariant(familyKey, tier){
   if (!Object.prototype.hasOwnProperty.call(IQ_ODD_VARIANTS, familyKey)) throw new Error('iqOddPickVariant: no variants registered for family "' + familyKey + '".');
   const eligible = IQ_ODD_VARIANTS[familyKey].filter(v => v.enabled && v.minTier <= tier);
   if (!eligible.length) throw new Error('iqOddPickVariant: no enabled variant for family "' + familyKey + '" at tier ' + tier + '.');
-  return eligible.length === 1 ? eligible[0] : pickOne(eligible);
+  const fresh = IQ_ODD_AVOID_REPEAT ? eligible.filter(v => v.key !== IQ_ODD_LAST.variants[familyKey]) : eligible;
+  const pool = fresh.length ? fresh : eligible;
+  return pool.length === 1 ? pool[0] : pickOne(pool);
 }
 
 // Recomputes which option(s) break the family's rule (see each family's verify).
@@ -111,9 +119,10 @@ function iqOddGenerate(tier){
   // underlying logic five times in a row. The tier only scales each family's
   // OWN internal difficulty knob, so "same level" still means "equally hard",
   // just via whichever rule got picked this time.
-  const eligible = IQ_ODD_FAMILIES.filter(f => f.enabled && f.minTier <= tier);
+  const eligible = IQ_ODD_FAMILIES.filter(f => f.enabled && f.minTier <= tier && tier <= f.maxTier);
   if (!eligible.length) throw new Error('iqOddGenerate: no enabled family for tier ' + tier + '.');
-  const family = pickOne(eligible);
+  const fresh = IQ_ODD_AVOID_REPEAT ? eligible.filter(f => f.key !== IQ_ODD_LAST.family) : eligible;
+  const family = pickOne(fresh.length ? fresh : eligible);
   let result, guard = 0;
   do {
     result = family.generate(tier);
@@ -127,6 +136,8 @@ function iqOddGenerate(tier){
     // regressed and needs fixing, not a case to paper over.
     throw new Error('iqOddGenerate: failed to produce a valid "' + family.key + '" question after ' + guard + ' attempts (tier ' + tier + ').');
   }
+  IQ_ODD_LAST.family = result.family;
+  if (result.variant) IQ_ODD_LAST.variants[result.family] = result.variant;
   return result;
 }
 
