@@ -2222,9 +2222,9 @@ const IQ_ANALOGY_MECHANICS = [
   { minTier: 6, fn: iqAnalogyMech_conditionalMod3 },
   { minTier: 7, fn: iqAnalogyMech_conditionalMod3Combo }
 ];
+// The pool (the nine mechanics above + the rule-library designs of iq-analogy-engine.js) is drawn there.
 function generateAnalogy(tier){
-  const pool = IQ_ANALOGY_MECHANICS.filter(m => m.minTier <= tier);
-  return pickOne(pool).fn();
+  return iqAnalogyPick(tier);
 }
 
 registerIQCategory({
@@ -2233,7 +2233,10 @@ registerIQCategory({
   title: 'אנלוגיות צורות',
   subtitle: 'איזה שינוי מתאים?',
   renderQuestion(tier, promptEl, optionsEl, onAnswer){
-    const { A, Aprime, B, correctBprime, wrongBprimes } = generateAnalogy(tier);
+    optionsEl.classList.add('iq-options-grow');                                                           // bigger answer tiles that grow with the screen
+    const question = generateAnalogy(tier);
+    if (question.design) return iqAnalogyRenderEngine(question, promptEl, optionsEl, onAnswer);        // a rule-library question
+    const { A, Aprime, B, correctBprime, wrongBprimes } = question;
     promptEl.innerHTML =
       '<div class="iq-prompt-label">השלימו את האנלוגיה:</div>' +
       '<div class="iq-analogy-row">' +

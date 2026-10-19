@@ -232,20 +232,22 @@ function run(opts){
   });
 
   // ---- R6: scope of the change ----
-  test('R6 scope: production changes since the reference are confined to the odd-one-out work (iq-visual.js oddone section, iq-odd-core.js, the new iq-odd-*.js files, index.html script tags, one added iq.css block)', () => {
+  test('R6 scope: production changes since the reference are confined to the odd-one-out work (iq-visual.js oddone and analogies sections, iq-odd-core.js, iq-analogy-engine.js, the new iq-odd-*.js files, index.html script tags, one added iq.css block)', () => {
     const changed = git(['diff', '--name-only', ref]).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
     const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
-    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css', 'js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js', 'js/iq-odd-logic.js'], allowedNew = ['js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js', 'js/iq-odd-logic.js'];
+    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css', 'js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js', 'js/iq-odd-logic.js', 'js/iq-analogy-engine.js'], allowedNew = ['js/iq-odd-basic.js', 'js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js', 'js/iq-odd-insight.js', 'js/iq-odd-logic.js', 'js/iq-analogy-engine.js'];
     const okChanged = changed.every(f => allowedChanged.includes(f));
     const okNew = untracked.every(f => allowedNew.includes(f));
     // hunks of iq-visual.js must all fall inside the oddone section of the REFERENCE file
     const refLines = git(['show', ref + ':js/iq-visual.js']).split('\n');
     const start = refLines.findIndex(l => l.includes('Category: odd one out')) + 1;
     const end = refLines.findIndex(l => l.includes('Category: shape analogies')) ; // 1-based line of the marker minus 1
+    const aStart = refLines.findIndex(l => l.includes('Category: shape analogies')) + 1, aEnd = refLines.findIndex(l => l.includes('Category: matrix completion'));   // the analogies section may change too
     const hunks = [...git(['diff', '-U0', ref, '--', 'js/iq-visual.js']).matchAll(/^@@ -(\d+)(?:,(\d+))? \+/gm)].map(m => [Number(m[1]), m[2] === undefined ? 1 : Number(m[2])]);
-    const outside = hunks.filter(([a, b]) => (b === 0 ? a : a) < start || (b === 0 ? a : a + b - 1) > end);
+    const inside = (a, b, lo, hi) => (b === 0 ? a : a) >= lo && (b === 0 ? a : a + b - 1) <= hi;
+    const outside = hunks.filter(([a, b]) => !inside(a, b, start, end) && !inside(a, b, aStart, aEnd));
     const htmlDiff = git(['diff', '-U0', ref, '--', 'index.html']).split('\n').filter(l => /^[+-][^+-]/.test(l));
-    const okHtml = htmlDiff.length > 0 && htmlDiff.every(l => /^\+<script src="js\/iq-odd-[a-z]+\.js"><\/script>$/.test(l));
+    const okHtml = htmlDiff.length > 0 && htmlDiff.every(l => /^\+<script src="js\/iq-(?:odd-[a-z]+|analogy-engine)\.js"><\/script>$/.test(l));
     const cssDiff = git(['diff', '-U0', ref, '--', 'css/iq.css']).split('\n').filter(l => /^[+-][^+-]/.test(l));
     const okCss = cssDiff.every(l => l[0] === '+');                                                     // the stylesheet only gained lines
     const untouched = ['js/iq-core.js', 'js/core.js', 'js/iq-matrix3.js', 'js/iq-sequences.js', 'js/iq-shapes.js'].filter(f => changed.includes(f));

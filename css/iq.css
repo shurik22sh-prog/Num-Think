@@ -181,6 +181,8 @@
 .iq-options.iq-options-odd{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 150px); max-width:800px; }
 .iq-options.iq-options-odd.iq-options-large{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 180px); }
 .iq-options-odd .iq-option-btn{ width:var(--odd-tile); height:var(--odd-tile); min-width:0; padding:4px; }
+.iq-options.iq-options-grow{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 150px); max-width:800px; }          /* shape analogies: the same growing tiles */
+.iq-options-grow .iq-option-btn{ width:var(--odd-tile); height:var(--odd-tile); min-width:0; padding:4px; }
 
 @media (max-width:600px){
   .iq-tile, .iq-matrix-cell, .iq-option-btn{ width:60px; height:60px; min-width:60px; font-size:22px; }
