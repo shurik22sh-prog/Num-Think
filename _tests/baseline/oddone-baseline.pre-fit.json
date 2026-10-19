@@ -1,0 +1,918 @@
+{
+ "meta": {
+  "node": "v24.18.0",
+  "seed": 1,
+  "questionsPerTier": 20000,
+  "domQuestionsPerTier": 300,
+  "gitHead": "9d66287dbdae4e5508fa75d32a1af96b10e23ddb",
+  "productionFilesModified": [
+   "M _tests/review/build.js",
+   " M _tests/run.js",
+   " M _tests/suites/advanced.js",
+   " M _tests/suites/regression.js",
+   " M index.html",
+   "?? js/iq-odd-logic.js"
+  ],
+  "scripts": {
+   "js/core.js": "558a9820be03",
+   "js/multiplication.js": "e54201e2281a",
+   "js/iq-shapes.js": "2eec5f21f23c",
+   "js/iq-core.js": "2195ba74823d",
+   "js/iq-sequences.js": "a741f229eca4",
+   "js/iq-odd-core.js": "c49431145a72",
+   "js/iq-visual.js": "2482a8866eb0",
+   "js/iq-odd-geo.js": "d59f9e36a227",
+   "js/iq-odd-basic.js": "dd2e99ca1ecd",
+   "js/iq-odd-motion.js": "4e434bf9672a",
+   "js/iq-odd-relation.js": "5ef1094ffa4c",
+   "js/iq-odd-assembly.js": "c51ab2b52362",
+   "js/iq-odd-combo.js": "d11b0ca577a9",
+   "js/iq-odd-insight.js": "b088672eb901",
+   "js/iq-odd-logic.js": "20c73117439f",
+   "js/iq-matrix3.js": "84c6a934695d",
+   "js/fractions-shapes.js": "09bb4569b869",
+   "js/fractions-games.js": "bd4a7fac5caa"
+  },
+  "floors": {
+   "clearanceUnits": 2.5,
+   "xorOverArea": 0.19,
+   "note": "report thresholds, not selected product thresholds"
+  }
+ },
+ "generation": {
+  "1": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "ratio": 2448,
+    "topology": 4245,
+    "orientation": 2479,
+    "parts": 2442,
+    "symmetry": 4178,
+    "basic": 4208
+   },
+   "laterVariantCounts": {
+    "topology/hole-extra": 4245,
+    "orientation/cells-5": 1240,
+    "parts/square-2": 2442,
+    "ratio/sides-ring": 1224,
+    "basic/count-dots": 1400,
+    "basic/size": 1427,
+    "basic/count-sides": 1381
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 6641
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 1239,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M3 R1 R2 R3": 321,
+     "M2 R0 R1 R2": 311,
+     "M0 R0 R2 R3": 301,
+     "M1 R0 R1 R3": 306
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 1224,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.435,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 15.552,
+     "desktop": 25.92
+    }
+   },
+   "symmetry": {
+    "n": 4178,
+    "normalAxisHistogram": {
+     "0": 3073,
+     "45": 3288,
+     "90": 3130,
+     "135": 3037,
+     "0+90": 3,
+     "45+135": 1,
+     "0+45+90+135": 1,
+     "0+135": 1
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5,
+     "p10": 5.5,
+     "median": 7.2,
+     "p90": 8.1
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.16,
+     "median": 3.1104
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 21.2781
+    },
+    "minEdgePx": {
+     "phone": 7.2843,
+     "desktop": 12.1405
+    }
+   }
+  },
+  "2": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "symmetry": 4315,
+    "ratio": 2389,
+    "parts": 2392,
+    "basic": 4282,
+    "topology": 4191,
+    "orientation": 2431
+   },
+   "laterVariantCounts": {
+    "ratio/sides-rows": 472,
+    "parts/square-2": 2392,
+    "ratio/sides-ring": 494,
+    "basic/count-sides": 1067,
+    "topology/hole-extra": 4191,
+    "basic/count-dots": 1065,
+    "orientation/cells-5": 1215,
+    "basic/colour-split": 1071,
+    "ratio/sides-minus-1-rows": 479,
+    "basic/size": 1079,
+    "ratio/sides-minus-1-dice": 480
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 5995
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 1216,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M0 R0 R2 R3": 324,
+     "M1 R0 R1 R3": 300,
+     "M2 R0 R1 R2": 297,
+     "M3 R1 R2 R3": 295
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 464,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.435,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 15.552,
+     "desktop": 25.92
+    }
+   },
+   "symmetry": {
+    "n": 4315,
+    "normalAxisHistogram": {
+     "0": 3091,
+     "45": 3332,
+     "90": 3277,
+     "135": 3236,
+     "0+90": 7,
+     "45+135": 2
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5,
+     "p10": 5.5,
+     "median": 7.2,
+     "p90": 8.1
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.16,
+     "median": 3.1104
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 21.7613
+    },
+    "minEdgePx": {
+     "phone": 7.2843,
+     "desktop": 12.1405
+    }
+   }
+  },
+  "3": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "props": 3091,
+    "ratio": 1632,
+    "parts": 1621,
+    "topology": 2962,
+    "symmetry": 3027,
+    "basic": 2971,
+    "orientation": 1662,
+    "trace": 3034
+   },
+   "laterVariantCounts": {
+    "props/equal-sides": 3091,
+    "ratio/sides-minus-2-dice": 188,
+    "parts/square-4": 811,
+    "topology/chain": 982,
+    "basic/colour-split": 755,
+    "orientation/cells-6": 554,
+    "basic/count-dots": 745,
+    "parts/square-2": 810,
+    "ratio/sides-minus-2-ring": 211,
+    "topology/hole-missing": 1010,
+    "trace/one-stroke": 3034,
+    "ratio/sides-minus-1-rows": 216,
+    "ratio/sides-minus-1-dice": 210,
+    "orientation/cells-5": 551,
+    "topology/hole-extra": 970,
+    "basic/count-sides": 729,
+    "basic/size": 742,
+    "ratio/sides-rows": 204,
+    "ratio/sides-ring": 211,
+    "ratio/sides-minus-2-rows": 207
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 3769
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 557,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M3 R1 R2 R3": 143,
+     "M0 R0 R2 R3": 135,
+     "M1 R0 R1 R3": 123,
+     "M2 R0 R1 R2": 156
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 185,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.435,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 15.552,
+     "desktop": 25.92
+    }
+   },
+   "symmetry": {
+    "n": 3027,
+    "normalAxisHistogram": {
+     "0": 2222,
+     "45": 2286,
+     "90": 2272,
+     "135": 2293,
+     "0+90": 3,
+     "45+135": 5
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5.0912,
+     "p10": 5.5,
+     "median": 6.3,
+     "p90": 6.8
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.1994,
+     "median": 2.7216
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 21.5395
+    },
+    "minEdgePx": {
+     "phone": 7.2843,
+     "desktop": 12.1405
+    }
+   }
+  },
+  "4": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "parts": 677,
+    "assembly": 1387,
+    "motion": 1366,
+    "net": 1350,
+    "trace": 1395,
+    "ratio": 682,
+    "props": 1351,
+    "solid": 1386,
+    "symmetry": 1329,
+    "overlay": 1392,
+    "stack": 1443,
+    "combo": 1355,
+    "topology": 1394,
+    "orientation": 728,
+    "balance": 1356,
+    "relation": 1409
+   },
+   "laterVariantCounts": {
+    "parts/square-2": 172,
+    "assembly/cube-net": 694,
+    "motion/mirror-swap": 683,
+    "net/ring-or-stub": 1350,
+    "assembly/remove-sym-v": 693,
+    "trace/one-stroke": 1395,
+    "ratio/sides-rows": 63,
+    "props/right-angles": 271,
+    "solid/cube-views": 1386,
+    "props/equal-sides": 285,
+    "motion/rot-same": 683,
+    "overlay/hidden-op": 1392,
+    "stack/three-shapes": 1443,
+    "props/two-parallel-pairs": 282,
+    "combo/sudoku-box": 678,
+    "ratio/sides-minus-1-rows": 62,
+    "topology/chain": 480,
+    "topology/hole-extra": 474,
+    "orientation/cells-5": 228,
+    "balance/consistent-scales": 1356,
+    "parts/circle-3": 173,
+    "relation/hull-bbox": 705,
+    "combo/dots-axes": 677,
+    "props/right-triangle": 261,
+    "relation/mirror-diag": 704,
+    "parts/square-4": 170,
+    "orientation/cells-6": 252,
+    "props/one-parallel-pair": 252,
+    "parts/circle-4": 162,
+    "ratio/sides-plus-1-rows": 69,
+    "topology/hole-missing": 440,
+    "ratio/sides-ring": 81,
+    "ratio/sides-minus-2-rows": 76,
+    "ratio/sides-minus-2-dice": 63,
+    "ratio/sides-minus-1-dice": 70,
+    "ratio/sides-plus-1-ring": 65,
+    "ratio/sides-minus-2-ring": 68
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 1642
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 248,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M0 R0 R2 R3": 69,
+     "M2 R0 R1 R2": 60,
+     "M1 R0 R1 R3": 64,
+     "M3 R1 R2 R3": 55
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 65,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3.1974,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.7615,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 13.4765,
+     "desktop": 22.4608
+    }
+   },
+   "symmetry": {
+    "n": 1329,
+    "normalAxisHistogram": {
+     "0": 1023,
+     "45": 1012,
+     "90": 959,
+     "135": 987,
+     "45+135": 3,
+     "0+90": 3
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5,
+     "p10": 5.5154,
+     "median": 6.3,
+     "p90": 6.8
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.16,
+     "median": 2.7216
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 21.0685
+    },
+    "minEdgePx": {
+     "phone": 7.3008,
+     "desktop": 12.168
+    }
+   }
+  },
+  "5": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "net": 1264,
+    "overlay": 1284,
+    "orientation": 710,
+    "combo": 1324,
+    "relation": 1237,
+    "balance": 1285,
+    "parts": 642,
+    "stack": 1286,
+    "solid": 1270,
+    "trace": 1313,
+    "symmetry": 1283,
+    "motion": 1302,
+    "induce": 1280,
+    "ratio": 649,
+    "topology": 1321,
+    "props": 1251,
+    "assembly": 1299
+   },
+   "laterVariantCounts": {
+    "net/same-links": 632,
+    "overlay/hidden-op": 1284,
+    "orientation/cells-7": 175,
+    "combo/size-sides": 201,
+    "relation/mirror-diag": 320,
+    "balance/consistent-scales": 1285,
+    "combo/dots-angles": 181,
+    "parts/square-4": 149,
+    "stack/three-shapes": 1286,
+    "net/ring-or-stub": 632,
+    "relation/hull-missing": 294,
+    "solid/cube-views": 1270,
+    "orientation/cells-5": 165,
+    "trace/one-stroke": 1313,
+    "motion/mirror-swap": 252,
+    "induce/two-step-rule": 1280,
+    "ratio/sides-minus-1-rows": 65,
+    "topology/hole-missing": 440,
+    "motion/maze-short": 261,
+    "props/one-parallel-pair": 247,
+    "topology/hole-extra": 438,
+    "ratio/sides-minus-2-rows": 67,
+    "motion/rot-same": 273,
+    "topology/chain": 443,
+    "props/right-triangle": 259,
+    "assembly/remove-sym-v": 425,
+    "motion/mirror-offset": 248,
+    "ratio/sides-minus-2-dice": 64,
+    "assembly/cube-net": 448,
+    "props/right-angles": 242,
+    "combo/dots-axes": 186,
+    "relation/homothety": 306,
+    "combo/queens": 193,
+    "props/two-parallel-pairs": 246,
+    "assembly/remove-sym": 426,
+    "combo/mirror-colour": 200,
+    "combo/sudoku-row": 181,
+    "parts/square-2": 160,
+    "parts/circle-4": 169,
+    "motion/rot-centre": 268,
+    "relation/hull-bbox": 317,
+    "parts/circle-3": 164,
+    "combo/sudoku-box": 182,
+    "orientation/cells-6": 190,
+    "ratio/sides-plus-1-rows": 66,
+    "ratio/sides-minus-1-dice": 65,
+    "props/equal-sides": 257,
+    "ratio/sides-rows": 54,
+    "ratio/sides-plus-1-ring": 73,
+    "ratio/sides-ring": 68,
+    "ratio/sides-minus-2-ring": 54
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 1536
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 180,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M1 R0 R1 R3": 51,
+     "M2 R0 R1 R2": 38,
+     "M0 R0 R2 R3": 43,
+     "M3 R1 R2 R3": 48
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 73,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3.1974,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.7615,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 13.4765,
+     "desktop": 22.4608
+    }
+   },
+   "symmetry": {
+    "n": 1283,
+    "normalAxisHistogram": {
+     "0": 966,
+     "45": 933,
+     "90": 967,
+     "135": 980,
+     "45+135": 2,
+     "0+90": 1
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5,
+     "p10": 5.0912,
+     "median": 5.5,
+     "p90": 5.9
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.16,
+     "median": 2.376
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 97.5058
+    },
+    "minEdgePx": {
+     "phone": 7.2843,
+     "desktop": 12.1405
+    }
+   }
+  },
+  "6": {
+   "questions": 20000,
+   "throws": 0,
+   "throwMessages": {},
+   "familyCounts": {
+    "net": 1263,
+    "symmetry": 1328,
+    "orientation": 643,
+    "combo": 1227,
+    "ratio": 665,
+    "relation": 1280,
+    "balance": 1299,
+    "solid": 1294,
+    "stack": 1272,
+    "induce": 1317,
+    "assembly": 1340,
+    "overlay": 1331,
+    "props": 1232,
+    "motion": 1302,
+    "trace": 1290,
+    "topology": 1252,
+    "parts": 665
+   },
+   "laterVariantCounts": {
+    "net/same-links": 632,
+    "orientation/cells-5": 168,
+    "combo/dots-axes": 149,
+    "ratio/sides-ring": 68,
+    "relation/double-mirror": 235,
+    "balance/consistent-scales": 1299,
+    "relation/mirror-diag": 203,
+    "solid/cube-views": 1294,
+    "ratio/sides-plus-1-rows": 69,
+    "stack/three-shapes": 1272,
+    "orientation/cells-7": 169,
+    "induce/two-step-rule": 1317,
+    "assembly/tiling": 339,
+    "combo/dots-angles": 137,
+    "assembly/cube-net": 324,
+    "relation/hull-missing": 220,
+    "relation/self-replace": 193,
+    "combo/size-sides": 151,
+    "net/ring-or-stub": 631,
+    "overlay/hidden-op": 1331,
+    "props/right-triangle": 250,
+    "motion/mirror-swap": 243,
+    "props/two-parallel-pairs": 258,
+    "assembly/remove-sym-v": 331,
+    "orientation/cells-6": 144,
+    "trace/one-stroke": 1290,
+    "props/right-angles": 249,
+    "motion/maze-short": 204,
+    "topology/hole-extra": 434,
+    "ratio/sides-minus-1-dice": 62,
+    "props/equal-sides": 231,
+    "motion/mirror-offset": 215,
+    "assembly/remove-sym": 346,
+    "motion/rot-centre": 230,
+    "combo/mirror-colour": 116,
+    "motion/maze-long": 191,
+    "combo/queens": 132,
+    "parts/square-4": 171,
+    "topology/chain": 404,
+    "parts/square-2": 154,
+    "ratio/sides-minus-2-ring": 72,
+    "topology/hole-missing": 414,
+    "motion/rot-same": 219,
+    "combo/knight": 133,
+    "props/one-parallel-pair": 244,
+    "ratio/sides-minus-2-dice": 69,
+    "combo/mirror-shape": 130,
+    "relation/homothety": 229,
+    "relation/hull-bbox": 200,
+    "ratio/sides-plus-1-ring": 72,
+    "ratio/sides-minus-1-rows": 55,
+    "parts/circle-4": 169,
+    "combo/sudoku-box": 152,
+    "parts/circle-3": 171,
+    "ratio/sides-minus-2-rows": 67,
+    "combo/sudoku-row": 127,
+    "ratio/sides-rows": 75
+   },
+   "generationAttempts": {
+    "histogram": {
+     "1": 1546
+    },
+    "mean": 1,
+    "max": 1
+   },
+   "schemaFailures": 0,
+   "familyInferenceMismatch": 0,
+   "independentFailures": {
+    "orientation": 0,
+    "ratio": 0,
+    "symmetry": 0
+   },
+   "independentFailureExamples": [],
+   "orientation": {
+    "n": 162,
+    "distinctStructures": 4,
+    "structureCounts": {
+     "M3 R1 R2 R3": 33,
+     "M1 R0 R1 R3": 34,
+     "M2 R0 R1 R2": 51,
+     "M0 R0 R2 R3": 44
+    },
+    "minXorOverArea": 0.2111,
+    "xorBelowFloor": 0,
+    "oddNotMirrorOfOthers": 0,
+    "minEdgePx": {
+     "phone": 7.56,
+     "desktop": 12.6
+    }
+   },
+   "ratio": {
+    "n": 56,
+    "distinctStructures": 12,
+    "minDotClearanceUnits": 3.1974,
+    "optionsBelowClearanceFloor": 0,
+    "dotsOutsidePolygon": 0,
+    "minDotGapBetweenDotsUnits": 5.7615,
+    "minDotRadiusPx": {
+     "phone": 1.728,
+     "desktop": 2.88
+    },
+    "minEdgePx": {
+     "phone": 13.4765,
+     "desktop": 22.4608
+    }
+   },
+   "symmetry": {
+    "n": 1328,
+    "normalAxisHistogram": {
+     "0": 999,
+     "45": 971,
+     "90": 1012,
+     "135": 1000,
+     "45+135": 1,
+     "0+90": 1
+    },
+    "oddWithAnySymmetryAxis": 0,
+    "maxDeviationOfNormalsOnBestAxisUnits": 0,
+    "oddMarginUnits": {
+     "p1": 5,
+     "p10": 5.0912,
+     "median": 5.5,
+     "p90": 5.9
+    },
+    "oddMarginPx_phone": {
+     "p1": 2.16,
+     "median": 2.376
+    },
+    "oddMarginBelowThreshold": {
+     "below_2_units_pct": 0,
+     "below_3_units_pct": 0,
+     "below_4_units_pct": 0,
+     "below_6_units_pct": 97.741
+    },
+    "minEdgePx": {
+     "phone": 7.3008,
+     "desktop": 12.168
+    }
+   }
+  }
+ },
+ "dom": {
+  "1": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  },
+  "2": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  },
+  "3": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  },
+  "4": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  },
+  "5": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  },
+  "6": {
+   "questions": 300,
+   "buttons4": 300,
+   "exactlyOneCorrect": 300,
+   "correctMatchesGeneratorOdd": 300,
+   "optionMultisetMatches": 300,
+   "explanationShown": 300,
+   "explanationHiddenBefore": 300,
+   "promptOk": 300,
+   "errors": 0
+  }
+ },
+ "progression": {
+  "maxTier": 6,
+  "levelUpStreak": 4,
+  "fresh": "1/0",
+  "twentySixCorrectFromFresh": "1/1 1/2 1/3 2/0 2/1 2/2 2/3 3/0 3/1 3/2 3/3 4/0 4/1 4/2 4/3 5/0 5/1 5/2 5/3 6/0 6/1 6/2 6/3 6/0 6/1 6/2",
+  "afterWrong": "6/0",
+  "atMaxTierAfterCorrectAtStreak3": "6/0",
+  "corruptStorage": "1/0",
+  "missingOddoneKey": "1/0",
+  "otherCategoriesUntouched": "{\"oddone\":{\"tier\":4,\"streak\":3},\"other\":{\"tier\":3,\"streak\":1}}"
+ }
+}

@@ -81,6 +81,8 @@ function iqAsmLongestRun(cells){
 }
 const iqAsmFrame = cells => { const b = iqAdvBBox(cells); return [b.x1 - b.x0 + 1, b.y1 - b.y0 + 1].sort().join('x'); };
 const iqAsmRandomOrient = cells => iqOddFigNormalize(cells.map(pickOne(iqOddFigD4)));
+// a piece shown at most two cells tall, so three pieces fit one under the other in the column beside the body
+const iqAsmWideOrient = cells => pickOne(iqOddFigD4.map(f => iqOddFigNormalize(cells.map(f))).filter(o => Math.max(...o.map(c => c[1])) <= 1));
 
 // reflections of a cell set inside a 5x5 frame: the four axis families, every position
 function iqAsmReflections(){
@@ -275,7 +277,7 @@ function iqAsmGenTiling(def){
       items.push({
         kind: 'assembly', figure: 'tiling', size: 100, strokeWidth: 1.6,
         body: pickOne(pool).map(c => c.slice()),
-        pieces: sets[i].map((t, k) => ({ cells: iqAsmRandomOrient(IQ_ASM_TETROS[t]), color: colors[k] }))
+        pieces: sets[i].map((t, k) => ({ cells: iqAsmWideOrient(IQ_ASM_TETROS[t]), color: colors[k] }))
       });
     }
     if (!ok) continue;

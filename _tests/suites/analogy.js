@@ -128,6 +128,7 @@ function run(){
       if (svgs(r.prompt) !== wantPrompt) bad.push(key + ': prompt has ' + svgs(r.prompt) + ' pictures, expected ' + wantPrompt);
       if (r.options.length !== 4) bad.push(key + ': ' + r.options.length + ' options');
       if (r.options.some(h => /NaN|undefined/.test(h)) || /NaN|undefined/.test(r.prompt)) bad.push(key + ': NaN in a picture');
+      if (new Set(r.options).size !== 4) bad.push(key + ': two options look exactly alike');
       if (r.results.filter(v => v === true).length !== 1) bad.push(key + ': ' + r.results.filter(v => v === true).length + ' correct options');
       if (!/^הכלל/.test(r.expl)) bad.push(key + ': no rule shown after a correct answer');
       if (key === 'pair-odd' && r.options.some(h => svgs(h) !== 3)) bad.push('pair option without two pictures');
@@ -154,6 +155,47 @@ function run(){
     if (repeatsD) bad.push(repeatsD + ' designs repeated in a row');
     if (repeatsR) bad.push(repeatsR + ' rules repeated in a row');
     return { pass: !bad.length, info: total + ' questions | older mechanics ' + (100 * legacy / total).toFixed(0) + '%' + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+  });
+  test('ANA-7 shapes fit: every shape type at every scale up to 1.5, every count and several turns stays inside its drawing area, outline included', () => {
+    const p = H.loadProject(), bad = []; let checked = 0;
+    const extents = svg => {                                                  // read the drawn geometry back from the SVG text (test-side)
+      const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg).slice(1).map(Number);
+      let dx = 0, lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+      const widen = (x, y, half) => { lo = [Math.min(lo[0], x - half), Math.min(lo[1], y - half)]; hi = [Math.max(hi[0], x + half), Math.max(hi[1], y + half)]; };
+      [...svg.matchAll(/<g transform="translate\(([-\d.]+) 0\)">|<\/g>|<polygon points="([^"]*)"[^>]*?stroke-width="([\d.]+)"|<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([\d.]+)"[^>]*?stroke-width="([\d.]+)"/g)].forEach(m => {
+        if (m[1] !== undefined) dx = +m[1];
+        else if (m[0] === '</g>') dx = 0;
+        else if (m[2] !== undefined) m[2].trim().split(' ').forEach(q => { const [x, y] = q.split(',').map(Number); widen(x + dx, y, +m[3] / 2); });
+        else if (m[4] !== undefined){ widen(+m[4] + dx - +m[6], +m[5], +m[7] / 2); widen(+m[4] + dx + +m[6], +m[5], +m[7] / 2); widen(+m[4] + dx, +m[5] - +m[6], +m[7] / 2); widen(+m[4] + dx, +m[5] + +m[6], +m[7] / 2); }
+      });
+      return { vb, lo, hi };
+    };
+    for (const type of ['circle', 'square', 'triangle', 'pentagon', 'hexagon', 'star', 'arrow'])
+      for (const scale of [0.7, 1, 1.2, 1.3, 1.4, 1.5]) for (const count of [1, 2, 3, 4, 5, 6]) for (const rotation of [0, 45, 90, 135, 200]){
+        const svg = p.ctx.renderShapeSVG({ type, color: '#FF6B6B', scale, count, rotation }), e = extents(svg); checked++;
+        const over = Math.max(e.vb[0] - e.lo[0], e.vb[1] - e.lo[1], e.hi[0] - (e.vb[0] + e.vb[2]), e.hi[1] - (e.vb[1] + e.vb[3]));
+        if (over > 0.05) bad.push(type + ' scale ' + scale + ' x' + count + ': ' + over.toFixed(1) + ' units outside');
+      }
+    // the SIZE of a group must be visible at every count: scale 1.3 is drawn about 1.3 times as wide as scale 1
+    for (const type of ['square', 'triangle', 'hexagon', 'arrow']) for (const count of [2, 3, 4, 5, 6]){
+      const w = sc => { const e = extents(p.ctx.renderShapeSVG({ type, color: '#FF6B6B', scale: sc, count })); return e.hi[0] - e.lo[0]; };
+      const a = w(1), b = w(1.3), ratio = (b - (count - 1) * 0) / a;
+      const unit = sc => { const e = extents(p.ctx.renderShapeSVG({ type, color: '#FF6B6B', scale: sc, count: 1 })); return e.hi[0] - e.lo[0]; };
+      void ratio; void unit;
+      const first = sc => { const m = /<g transform="translate\(([-\d.]+) 0\)"><polygon points="([^"]*)"/.exec(p.ctx.renderShapeSVG({ type: type === 'arrow' ? 'square' : type, color: '#FF6B6B', scale: sc, count })); const xs = m[2].trim().split(' ').map(q => +q.split(',')[0]); return Math.max(...xs) - Math.min(...xs); };
+      const rr = first(1.3) / first(1);
+      if (rr < 1.25 || rr > 1.35) bad.push(type + ' x' + count + ': scale 1.3 is drawn ' + rr.toFixed(2) + ' times as wide as scale 1');
+    }
+    return { pass: !bad.length, info: checked + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ' all inside') };
+  });
+  test('ANA-8 the nine older mechanics: the four answers of every question are four different pictures', () => {
+    const p = H.loadProject(); p.seed(88); const bad = [];
+    const mechs = p.evalIn('IQ_ANALOGY_MECHANICS');
+    mechs.forEach((m, i) => { for (let k = 0; k < Math.round(N / 3); k++){
+      const q = m.fn(), wrong = p.ctx.iqSanitizeDistractors(q.correctBprime, q.wrongBprimes), shown = [q.correctBprime].concat(wrong).map(s => p.ctx.renderShapeSVG(s));
+      if (new Set(shown).size !== 4){ bad.push('mechanic ' + i + ' (level ' + m.minTier + '): two answers look alike'); break; }
+    } });
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : '9 mechanics x ' + Math.round(N / 3) + ' questions, always four different answers' };
   });
   return out;
 }

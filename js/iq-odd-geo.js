@@ -40,7 +40,7 @@ function iqAdvClipLine(q, deg){
   let lo = -1e9, hi = 1e9;
   for (let a = 0; a < 2; a++){
     if (Math.abs(u[a]) < 1e-9) continue;
-    const t1 = (0 - q[a]) / u[a], t2 = (100 - q[a]) / u[a];
+    const t1 = (1.5 - q[a]) / u[a], t2 = (98.5 - q[a]) / u[a];            // the line stops just inside the tile, so its round ends are not cut off
     lo = Math.max(lo, Math.min(t1, t2)); hi = Math.min(hi, Math.max(t1, t2));
   }
   return [[q[0] + u[0] * lo, q[1] + u[1] * lo], [q[0] + u[0] * hi, q[1] + u[1] * hi]];

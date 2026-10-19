@@ -27,6 +27,7 @@ const IQ_COLOR_NAMES = {
 // angle (so it must never be used in a rotation-based question at all); the
 // others just need rotation amounts that avoid their own symmetry angle.
 const IQ_ROTATION_SYMMETRY = { circle: 1, square: 90, triangle: 120, pentagon: 72, hexagon: 60, star: 72, arrow: 360 };
+const IQ_SHAPE_MARGIN = 0.125;   // share of the size added on every side of the drawing area (room for scale 1.5 with its outline)
 const IQ_ROTATABLE_SHAPES = IQ_SHAPE_TYPES.filter(t => t !== 'circle');
 
 // `hasMarker` means the shape is drawn with the orientation dot (see renderShapeSVG) -
@@ -147,10 +148,14 @@ function renderShapeSVG(spec){
     // allotted gap (same safety margin the old flat-icon renderer used) - a
     // fixed shrink factor isn't enough once there are 3-4 copies, since the
     // gap shrinks with count but a fixed factor doesn't, causing overlap.
-    const maxWidth = size * 0.86;
+    // The copies are sized as scale x a base size that leaves room for the largest scale any game uses (1.5): the
+    // spacing no longer swallows the scale (it used to cap every copy at the same size, so a "bigger" group looked exactly
+    // like a normal one and two answers that differed only in size looked identical). The drawing area is wider than the
+    // nominal box (IQ_SHAPE_MARGIN), which is where the extra room comes from.
+    const maxWidth = size * (1 + 2 * IQ_SHAPE_MARGIN) * 0.88;
     const gap = maxWidth / count;
-    const fitScale = (gap * 1.05) / size;
-    const unitScale = Math.min(scale, fitScale);
+    const baseFit = Math.min(1, (gap * 1.05 / size) / 1.5);
+    const unitScale = scale * baseFit;
     const startX = cx - (gap * (count - 1)) / 2;
     for (let i = 0; i < count; i++){
       const dx = (startX + i * gap - cx).toFixed(1);
@@ -165,7 +170,11 @@ function renderShapeSVG(spec){
     inner += '<circle cx="'+mx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="'+markerR.toFixed(1)+'" fill="#3A3352"/>';
   }
 
-  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
+  // The drawing area is a little larger than the nominal size: a shape at scale 1.5 (the largest any game uses) has an outer radius of
+  // 0.6 x size plus its outline, which would be cut off at the edge of a size x size box. Every shape gets the same margin, so the relative
+  // sizes of shapes in one question stay exactly what the generators made them.
+  const m = size * IQ_SHAPE_MARGIN;
+  return '<svg viewBox="'+(-m)+' '+(-m)+' '+(size + 2*m)+' '+(size + 2*m)+'" width="'+size+'" height="'+size+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
 }
 
 function iqSpecsEqual(a, b){

@@ -156,7 +156,7 @@ function iqBalanceWeight(item, kind, cx, cy){
 function iqBalanceRender(item){
   let out = '';
   item.scales.forEach((s, k) => {
-    const y = 17 + k * 33, beam = y + 9;                                                                  // weights sit on the pans, the beam is below them
+    const y = 14 + k * 32, beam = y + 9;                                                                  // weights sit on the pans, the beam is below them
     out += iqAdvLineEl(item, [14, beam], [86, beam], IQ_ADV_INK, 2.4) + iqAdvPolyEl(item, [[50, beam], [45, beam + 8], [55, beam + 8]], IQ_ADV_INK, IQ_ADV_INK);
     [[s.left, 30], [s.right, 70]].forEach(([counts, cx]) => {
       const list = []; counts.forEach((n, kind) => { for (let i = 0; i < n; i++) list.push(kind); });
