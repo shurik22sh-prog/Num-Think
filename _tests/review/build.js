@@ -1,6 +1,6 @@
 'use strict';
-// Builds the master review sheet: node _tests/review/build.js [samplesPerVariant=6] [seed=1]
-// Writes _tests/review/master-review.html. Production code is loaded in a sandbox with EVERY family and variant switched on
+// Builds the master review sheet: node _tests/review/build.js [samplesPerVariant=6] [seed=1] [familyKeys=all, comma separated] [outputName=master-review.html]
+// Writes _tests/review/<outputName>. Production code is loaded in a sandbox with EVERY family and variant switched on
 // (only inside that sandbox - the shipped defaults are not touched). Each question is shown the way the game shows it:
 // four option tiles at the phone size (60px tile, 43px picture) and at the desktop size (84px tile, 72px picture);
 // the odd one is marked, and the Hebrew sentence the game would show after a correct answer sits underneath.
@@ -11,6 +11,8 @@ const path = require('path');
 const H = require('../harness');
 
 const perVariant = Number(process.argv[2] || 6), seed = Number(process.argv[3] || 1);
+const onlyFamilies = process.argv[4] && process.argv[4] !== 'all' ? process.argv[4].split(',') : null;
+const outName = process.argv[5] || 'master-review.html';
 const p = H.loadProject();
 p.seed(seed);
 const families = p.evalIn('IQ_ODD_FAMILIES'), variants = p.evalIn('IQ_ODD_VARIANTS');
@@ -24,11 +26,16 @@ const NOTES = {
   props: 'תכונה גאומטרית משותפת (צלעות שוות, מקבילות, זוויות ישרות)',
   topology: 'חורים סגורים בצורות רשת; שרשרת חרוזים מחוברת מול שבורה',
   stack: 'סדר הנחה של צורות חופפות',
-  net: 'קשרים בין נקודות ברשת'
+  net: 'קשרים בין נקודות ברשת',
+  motion: 'תנועה ויחסים במרחב: סיבוב, שיקוף, מבוכים',
+  relation: 'יחס בין שתי צורות: שיקוף, מעטפת קמורה, הגדלה, החלפה עצמית',
+  assembly: 'הרכבה ופירוק: רשתות קובייה, הסרת חלק, ריצוף',
+  combo: 'שילוב תנאים: לוחות, מדידה מול מדידה, תמונת ראי וצבע'
 };
 let body = '', toc = '';
 const rows = [];
 for (const fam of families){
+  if (onlyFamilies && !onlyFamilies.includes(fam.key)) continue;
   // families without registered variants (symmetry) pick their own design from the tier: show one question per tier
   const list = variants[fam.key] || [{ key: 'tiers 1-6', minTier: 1, enabled: true, generate: t => fam.generate(t), perTier: true }];
   list.forEach(v => {
@@ -46,7 +53,7 @@ for (const fam of families){
     sec += '<p class="expl">' + esc(entries[0].explanation) + '</p>';
     entries.forEach((r, qi) => {
       const tiles = (size, tile) => r.items.map((it, i) => '<div class="tile ' + (i === r.oddIndex ? 'odd' : '') + '" style="width:' + tile + 'px;height:' + tile + 'px"><div style="width:' + size + 'px;height:' + size + 'px">' + p.ctx.iqOddRenderItem(it).replace(/width="\d+" height="\d+"/, 'width="' + size + '" height="' + size + '"') + '</div></div>').join('');
-      sec += '<div class="q"><span class="n">' + (qi + 1) + '</span><div class="row phone">' + tiles(43.2, 60) + '</div><div class="row desk">' + tiles(72, 84) + '</div></div>';
+      sec += '<div class="q"><span class="n">' + (qi + 1) + '</span><div class="row phone">' + tiles(43.2, 60) + '</div><div class="row desk">' + (fam.largeTiles ? tiles(103, 120) : tiles(72, 84)) + '</div></div>';
     });
     body += sec + '</section>';
   });
@@ -63,6 +70,6 @@ const html = '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-
   '</style></head><body><h1>סקירה כוללת של "איזו צורה שונה מהשאר?"</h1>' +
   '<p class="hint">בכל שאלה הצורה השונה מסומנת בירוק. הצורות מוצגות בגודל הטלפון (מימין/למעלה) ובגודל המחשב. במסך צר מוצג רק גודל הטלפון. בדקו: האם ברור מה שונה? האם הניסוח מתחת לכותרת מתאים? האם משהו קטן מדי?</p>' +
   '<ul>' + toc + '</ul>' + body + '</body></html>';
-const out = path.join(__dirname, 'master-review.html');
+const out = path.join(__dirname, outName);
 fs.writeFileSync(out, html);
 console.log('wrote', out, '|', rows.length, 'variants,', rows.length * perVariant, 'questions, ' + Math.round(html.length / 1024) + ' KB');

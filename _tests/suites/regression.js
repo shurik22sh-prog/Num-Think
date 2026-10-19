@@ -229,11 +229,12 @@ function run(opts){
   });
 
   // ---- R6: scope of the change ----
-  test('R6 scope: only iq-visual.js (oddone section) and index.html (one added script tag) changed; one new production file', () => {
-    const changed = git(['diff', '--name-only', ref]).split('\n').filter(Boolean);
+  test('R6 scope: production changes since the reference are confined to the odd-one-out work (iq-visual.js oddone section, iq-odd-core.js, the new iq-odd-*.js files, index.html script tags, one added iq.css block)', () => {
+    const changed = git(['diff', '--name-only', ref]).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
     const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean).filter(f => !f.startsWith('_tests/'));
-    const okChanged = changed.every(f => ['js/iq-visual.js', 'index.html'].includes(f));
-    const okNew = untracked.length === 1 && untracked[0] === 'js/iq-odd-core.js';
+    const allowedChanged = ['js/iq-visual.js', 'js/iq-odd-core.js', 'index.html', 'css/iq.css'], allowedNew = ['js/iq-odd-geo.js', 'js/iq-odd-motion.js', 'js/iq-odd-relation.js', 'js/iq-odd-assembly.js', 'js/iq-odd-combo.js'];
+    const okChanged = changed.every(f => allowedChanged.includes(f));
+    const okNew = untracked.every(f => allowedNew.includes(f));
     // hunks of iq-visual.js must all fall inside the oddone section of the REFERENCE file
     const refLines = git(['show', ref + ':js/iq-visual.js']).split('\n');
     const start = refLines.findIndex(l => l.includes('Category: odd one out')) + 1;
@@ -241,14 +242,16 @@ function run(opts){
     const hunks = [...git(['diff', '-U0', ref, '--', 'js/iq-visual.js']).matchAll(/^@@ -(\d+)(?:,(\d+))? \+/gm)].map(m => [Number(m[1]), m[2] === undefined ? 1 : Number(m[2])]);
     const outside = hunks.filter(([a, b]) => (b === 0 ? a : a) < start || (b === 0 ? a : a + b - 1) > end);
     const htmlDiff = git(['diff', '-U0', ref, '--', 'index.html']).split('\n').filter(l => /^[+-][^+-]/.test(l));
-    const okHtml = htmlDiff.length === 1 && htmlDiff[0] === '+<script src="js/iq-odd-core.js"></script>';
-    const untouched = ['js/iq-core.js', 'js/core.js', 'js/iq-matrix3.js', 'js/iq-sequences.js', 'js/iq-shapes.js', 'css/iq.css'].filter(f => changed.includes(f));
-    return { pass: okChanged && okNew && !outside.length && okHtml && !untouched.length,
-      info: 'changed tracked files: ' + changed.join(', ') + ' | new production files: ' + untracked.join(', ') + ' | oddone section = reference lines ' + start + '-' + end + ', hunks outside it: ' + outside.length + ' | index.html diff: ' + htmlDiff.join(' ') };
+    const okHtml = htmlDiff.length > 0 && htmlDiff.every(l => /^\+<script src="js\/iq-odd-[a-z]+\.js"><\/script>$/.test(l));
+    const cssDiff = git(['diff', '-U0', ref, '--', 'css/iq.css']).split('\n').filter(l => /^[+-][^+-]/.test(l));
+    const okCss = cssDiff.every(l => l[0] === '+');                                                     // the stylesheet only gained lines
+    const untouched = ['js/iq-core.js', 'js/core.js', 'js/iq-matrix3.js', 'js/iq-sequences.js', 'js/iq-shapes.js'].filter(f => changed.includes(f));
+    return { pass: okChanged && okNew && !outside.length && okHtml && okCss && !untouched.length,
+      info: 'changed production files: ' + changed.join(', ') + ' | new production files: ' + untracked.join(', ') + ' | oddone section = reference lines ' + start + '-' + end + ', hunks outside it: ' + outside.length + ' | index.html: ' + htmlDiff.length + ' added script tags | iq.css only additions: ' + okCss };
   });
 
   // ---- R7: the new registry itself ----
-  test('R7 registry: the three original families in the original order, all enabled from tier 1, followed by the newer families (parts, props, topology, stack, net), all enabled from their own first tier; bad registrations and unknown kinds throw', () => {
+  test('R7 registry: the three original families in the original order, all enabled from tier 1, followed by the newer families (parts, props, topology, stack, net) enabled from their own first tier and the four advanced families (motion, relation, assembly, combo) enabled from tier 4; bad registrations and unknown kinds throw', () => {
     const fams = N.evalIn('IQ_ODD_FAMILIES').map(f => f.key + ':' + f.minTier + ':' + f.enabled);
     const throwsOn = fn => { try { fn(); return false; } catch (e){ return true; } };
     const dupe = throwsOn(() => N.ctx.iqOddRegisterFamily({ key: 'ratio', generate(){}, verify(){}, render(){} }));
@@ -256,7 +259,7 @@ function run(opts){
     const unknownKind = throwsOn(() => N.ctx.iqOddRenderItem({ kind: 'nope' }));
     const noKind = throwsOn(() => N.ctx.iqOddRenderItem({ sides: 3, dots: 2 }));
     const unknownFamily = throwsOn(() => N.ctx.iqOddVerifyExactlyOneOdd({ family: 'nope', items: [] }));
-    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:2:true', 'props:3:true', 'topology:2:true', 'stack:4:true', 'net:4:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
+    const exp = ['orientation:1:true', 'ratio:1:true', 'symmetry:1:true', 'parts:2:true', 'props:3:true', 'topology:2:true', 'stack:4:true', 'net:4:true', 'motion:4:true', 'relation:4:true', 'assembly:4:true', 'combo:4:true'];   // the families added after the reference (equal parts, properties, topology, stacking, networks), all switched OFF
     return { pass: JSON.stringify(fams) === JSON.stringify(exp) && dupe && missing && unknownKind && noKind && unknownFamily,
       info: fams.join(' ') + ' | duplicate/missing/unknown-kind/no-kind/unknown-family all throw: ' + [dupe, missing, unknownKind, noKind, unknownFamily] };
   });

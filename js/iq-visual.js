@@ -1948,7 +1948,8 @@ registerIQCategory({
   subtitle: 'מצאו את הצורה השונה',
   maxTier: 6,
   renderQuestion(tier, promptEl, optionsEl, onAnswer){
-    const { items, oddIndex, explanation } = iqOddGenerate(tier);
+    const { items, oddIndex, explanation, family } = iqOddGenerate(tier);
+    optionsEl.classList.toggle('iq-options-large', iqOddFamily(family).largeTiles);   // families with fine detail get bigger tiles on wide screens
     promptEl.innerHTML = '<div class="iq-prompt-text">איזו צורה שונה מהשאר?</div>';
     const options = items.map((item, i) => ({ html: iqOddRenderItem(item), isCorrect: i === oddIndex }));
     renderIQMultipleChoice(optionsEl, options, (isCorrect) => {

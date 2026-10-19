@@ -176,6 +176,12 @@
   animation:pulse 1.2s ease-in-out infinite;
 }
 
+/* Odd-one-out families with fine detail (largeTiles) get bigger tiles on tablet and desktop; phones keep the 60px tile below. */
+@media (min-width:601px){
+  .iq-options.iq-options-large{ max-width:560px; }
+  .iq-options-large .iq-option-btn{ width:120px; height:120px; min-width:120px; }
+}
+
 @media (max-width:600px){
   .iq-tile, .iq-matrix-cell, .iq-option-btn{ width:60px; height:60px; min-width:60px; font-size:22px; }
   .iq-tile-blank{ font-size:26px; }

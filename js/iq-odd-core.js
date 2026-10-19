@@ -3,7 +3,7 @@
 /* ============ Odd one out: family registry & generic dispatch ============ */
 // A "family" is one kind of odd-one-out question (orientation, ratio, symmetry,
 // ...). Each registers { key, generate(tier), verify(result), render(item) }
-// plus optional { minTier, enabled }, and everything generic - choosing which
+// plus optional { minTier, enabled, largeTiles }, and everything generic - choosing which
 // family to ask, the verify-and-retry loop, rendering an item by its `kind` -
 // lives here, so adding a family never means editing a chain of if/else.
 // Loaded before iq-visual.js, which registers the families.
@@ -29,8 +29,9 @@ function iqOddRegisterFamily(def){
   });
   if ('minTier' in def && !Number.isFinite(def.minTier)) throw new Error('iqOddRegisterFamily "' + def.key + '": "minTier" must be a finite number.');
   if ('enabled' in def && typeof def.enabled !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "enabled" must be a boolean.');
+  if ('largeTiles' in def && typeof def.largeTiles !== 'boolean') throw new Error('iqOddRegisterFamily "' + def.key + '": "largeTiles" must be a boolean.');
   if (IQ_ODD_FAMILIES.some(f => f.key === def.key)) throw new Error('iqOddRegisterFamily: duplicate family "' + def.key + '"');
-  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, enabled: true }, def));
+  IQ_ODD_FAMILIES.push(Object.assign({ minTier: 1, enabled: true, largeTiles: false }, def));
 }
 
 // A generator's result must be well-formed BEFORE it is verified: the verifier
