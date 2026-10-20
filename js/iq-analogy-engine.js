@@ -140,7 +140,7 @@ function iqAnClassic(tier){
 }
 function iqAnTwoExamples(tier){
   for (let attempt = 0; attempt < 600; attempt++){
-    const mode = iqAnPickMode(), library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 3));
+    const mode = iqAnPickMode(), library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
     const A = iqAnRandomState(mode), C = iqAnRandomState(mode), B = iqAnRandomState(mode);
     const A2 = iqAnApply(rule, A), C2 = iqAnApply(rule, C), B2 = iqAnApply(rule, B);
     if (!A2 || !C2 || !B2 || iqAnSame(A, C) || iqAnSame(A, B) || iqAnSame(C, B) || iqAnSame(A, A2) || iqAnSame(C, C2) || iqAnSame(B, B2)) continue;
@@ -156,7 +156,7 @@ function iqAnTwoExamples(tier){
 }
 function iqAnPairOdd(tier){
   for (let attempt = 0; attempt < 600; attempt++){
-    const mode = iqAnPickMode(), library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 3));
+    const mode = iqAnPickMode(), library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
     const near = iqAnNeighbours(rule, library);
     if (!near.length) continue;
     const other = pickOne(near), states = [0, 1, 2, 3, 4].map(() => iqAnRandomState(mode));
@@ -176,9 +176,10 @@ function iqAnPairOdd(tier){
 
 // ----- the pool: the three designs -----
 const IQ_AN_DESIGNS = [
+  // Pacing: levels 1-3 are ONLY the classic design; the heavier designs arrive from level 4 as an occasional twist (about a third of the questions)
   { key: 'classic', minTier: 1, weight: 12, make: iqAnClassic },
-  { key: 'two-examples', minTier: 3, weight: 9, make: iqAnTwoExamples },
-  { key: 'pair-odd', minTier: 3, weight: 9, make: iqAnPairOdd }
+  { key: 'two-examples', minTier: 4, weight: 3, make: iqAnTwoExamples },
+  { key: 'pair-odd', minTier: 4, weight: 3, make: iqAnPairOdd }
 ];
 // every group of shapes in a question respects the hard limit; a question that breaks it is a defect, never shown
 function iqAnAssertLimit(q){
@@ -188,7 +189,8 @@ function iqAnAssertLimit(q){
 function iqAnalogyPick(tier){
   const pool = [];
   IQ_AN_DESIGNS.filter(d => d.minTier <= tier).forEach(d => { for (let i = 0; i < d.weight; i++) pool.push({ key: d.key, make: d.make }); });
-  const fresh = IQ_AN_AVOID_REPEAT ? pool.filter(p => p.key !== IQ_AN_LAST.design) : pool;
+  // a heavy design never comes twice in a row; the classic design may (it is the base, and forbidding it would force a heavy design after every classic one)
+  const fresh = IQ_AN_AVOID_REPEAT ? pool.filter(p => p.key === 'classic' || p.key !== IQ_AN_LAST.design) : pool;
   const chosen = pickOne(fresh.length ? fresh : pool);
   const q = chosen.make(tier);
   iqAnAssertLimit(q);

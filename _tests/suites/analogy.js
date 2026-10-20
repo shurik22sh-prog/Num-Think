@@ -109,7 +109,7 @@ function run(){
   ['classic', 'two-examples', 'pair-odd'].forEach((key, k) => {
     test('ANA-' + (2 + k) + ' ' + key + ': ' + N + ' questions checked against the independent library at every level', () => {
       const p = H.loadProject(); p.seed(80 + k); const bad = []; let invalid = 0, ex = null; const rules = new Set();
-      const tiers = key === 'classic' ? [1, 2, 3, 4, 5, 6, 7] : [3, 4, 5, 6, 7];
+      const tiers = key === 'classic' ? [1, 2, 3, 4, 5, 6, 7] : [4, 5, 6, 7];
       for (let i = 0; i < N; i++){
         const t = tiers[i % tiers.length], q = pickDesign(p, key, t), errs = checkQuestion(q);
         const n = q.rule.length; if (t <= 2 && n !== 2) errs.push('level ' + t + ' rule has ' + n + ' steps'); if (t >= 5 && n !== 3) errs.push('level ' + t + ' rule has ' + n + ' steps');
@@ -124,7 +124,7 @@ function run(){
   test('ANA-5 rendering: the real renderer draws the right pictures, exactly one option is correct, the rule is shown after a correct answer', () => {
     const p = H.loadProject(); p.seed(85); const bad = [];
     for (let i = 0; i < Math.round(N / 2); i++){
-      const key = ['classic', 'two-examples', 'pair-odd'][i % 3], q = pickDesign(p, key, 3 + (i % 5)), r = fakeRender(p, q);
+      const key = ['classic', 'two-examples', 'pair-odd'][i % 3], q = pickDesign(p, key, key === 'classic' ? 1 + (i % 7) : 4 + (i % 4)), r = fakeRender(p, q);
       const svgs = h => (h.match(/<svg\b/g) || []).length;
       const wantPrompt = { classic: 3, 'two-examples': 5, 'pair-odd': 2 }[key];
       if (svgs(r.prompt) !== wantPrompt) bad.push(key + ': prompt has ' + svgs(r.prompt) + ' pictures, expected ' + wantPrompt);
@@ -138,7 +138,7 @@ function run(){
     }
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.slice(0, 3).join(' | ') : 'prompt/option pictures, one correct answer, rule text' };
   });
-  test('ANA-6 pool and variety: only the rule-library designs are drawn (the nine older mechanics are gone); the new designs wait for level 3; the same design never comes twice in a row at levels 3+; no rule repeats back to back', () => {
+  test('ANA-6 pool and variety: only the rule-library designs are drawn (the nine older mechanics are gone); levels 1-3 are ONLY the classic design and the heavier ones arrive at level 4 as an occasional twist (a third or less); a heavy design never comes twice in a row; no rule repeats back to back', () => {
     const p = H.loadProject(); p.seed(86); const bad = []; let total = 0, repeatsD = 0, repeatsR = 0, prevD = null, prevR = null; const byTier = {};
     for (let t = 1; t <= 7; t++){
       p.evalIn('IQ_AN_LAST.design = null; IQ_AN_LAST.rule = null'); prevD = null; prevR = null; byTier[t] = new Set();
@@ -147,15 +147,16 @@ function run(){
         if (!q.design) bad.push('a question without a design at level ' + t);
         byTier[t].add(q.design);
         if (prevR === ruleKey(q.rule)) repeatsR++;
-        const d = p.evalIn('IQ_AN_LAST.design'); if (t >= 3 && d === prevD) repeatsD++;
+        const d = p.evalIn('IQ_AN_LAST.design'); if (d !== 'classic' && d === prevD) repeatsD++;
         prevD = d; prevR = ruleKey(q.rule);
       }
     }
     if (p.evalIn("typeof IQ_ANALOGY_MECHANICS") !== 'undefined') bad.push('the older mechanics still exist');
     if (p.evalIn("typeof generateAnalogy") !== 'undefined') bad.push('generateAnalogy still exists');
-    [1, 2].forEach(t => { if ([...byTier[t]].some(d => d !== 'classic')) bad.push('new designs at level ' + t); });
-    [3, 4, 5, 6, 7].forEach(t => { if (!byTier[t].has('classic') || !byTier[t].has('two-examples') || !byTier[t].has('pair-odd')) bad.push('a design is missing at level ' + t); });
-    if (repeatsD) bad.push(repeatsD + ' designs repeated in a row');
+    [1, 2, 3].forEach(t => { if ([...byTier[t]].some(d => d !== 'classic')) bad.push('a heavy design at level ' + t); });
+    [4, 5, 6, 7].forEach(t => { if (!byTier[t].has('classic') || !byTier[t].has('two-examples') || !byTier[t].has('pair-odd')) bad.push('a design is missing at level ' + t); });
+    const heavy = {}; for (let t = 4; t <= 7; t++){ let h = 0; p.evalIn('IQ_AN_LAST.design = null'); for (let i = 0; i < 600; i++) if (p.ctx.iqAnalogyPick(t).design !== 'classic') h++; heavy[t] = h / 600; if (heavy[t] > 0.40 || heavy[t] < 0.2) bad.push('heavy designs are ' + (100 * heavy[t]).toFixed(0) + '% at level ' + t + ' (wanted 20-40%)'); }
+    if (repeatsD) bad.push(repeatsD + ' heavy designs repeated in a row');
     if (repeatsR) bad.push(repeatsR + ' rules repeated in a row');
     return { pass: !bad.length, info: total + ' questions' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : '') };
   });
