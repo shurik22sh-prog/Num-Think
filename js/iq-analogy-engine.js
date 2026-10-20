@@ -9,13 +9,16 @@
 //   - the right answer is the rule applied to B,
 //   - every wrong answer is a plausible mistake: the result of a NEIGHBOUR rule (one step different)
 //     that the examples rule out, or the result of forgetting one step.
-// Three question designs (the nine older mechanics of iq-visual.js stay in the pool as they were):
+// Three question designs:
 //   classic        A -> A', B -> ?                            (one example)
 //   two-examples   A -> A', C -> C', B -> ?                   (each example alone leaves two possible rules; together one)
 //   pair-odd       a rule example, and four more pairs: three follow the rule, one does not (find it)
-// A state is {shape 0-2, colour 0-3, count 1-6, size 0/1, rot 0-7 (x45 degrees)}; `ctx` says which shapes and colours
+// A state is {shape 0-2, colour 0-3, count 1-4, size 0/1, rot 0-7 (x45 degrees)}; `ctx` says which shapes and colours
 // the question uses and whether it is an "arrow" question (rotation matters) or a "shapes" question (the shape can change).
 
+// HARD LIMIT: a group never holds more than this many shapes (in the pictures shown, the examples AND every answer).
+// More than four makes the tiles crowded and the shapes too small to compare.
+const IQ_AN_MAX_COUNT = 4;
 let IQ_AN_AVOID_REPEAT = true;                       // switchable for tests that need seeded sequences
 const IQ_AN_LAST = { design: null, rule: null };
 const IQ_AN_ATTRS = ['count', 'shape', 'colour', 'size', 'rot'];            // the order in which a rule's steps are applied
@@ -30,7 +33,7 @@ function iqAnStep(attr, op, st){
   if (attr === 'count'){
     const v = st.count;
     const n = op === '+1' ? v + 1 : op === '+2' ? v + 2 : op === 'x2' ? v * 2 : op === '-1' ? v - 1 : (v % 2 === 0 ? v / 2 : null);
-    return n !== null && n >= 1 && n <= 6 ? n : null;
+    return n !== null && n >= 1 && n <= IQ_AN_MAX_COUNT ? n : null;
   }
   if (attr === 'shape') return (st.shape + (op === '+1' ? 1 : 2)) % 3;
   if (attr === 'colour') return op === 'pair' ? st.colour ^ 1 : (st.colour + 2) % 4;
@@ -68,7 +71,7 @@ function iqAnLibrary(mode){
   return out;
 }
 const iqAnFits = (library, pairs) => library.filter(rule => pairs.every(([a, b]) => iqAnSame(iqAnApply(rule, a), b)));
-const iqAnRandomState = mode => ({ shape: mode === 'arrow' ? 0 : randInt(0, 2), colour: randInt(0, 3), count: randInt(1, 4), size: randInt(0, 1), rot: mode === 'arrow' ? randInt(0, 7) : 0 });
+const iqAnRandomState = mode => ({ shape: mode === 'arrow' ? 0 : randInt(0, 2), colour: randInt(0, 3), count: randInt(1, IQ_AN_MAX_COUNT), size: randInt(0, 1), rot: mode === 'arrow' ? randInt(0, 7) : 0 });
 function iqAnContext(mode){
   const pairs = shuffle(IQ_COLOR_PAIRS.slice()).slice(0, 2), colours = [pairs[0][0], pairs[0][1], pairs[1][0], pairs[1][1]];
   return { mode, shapes: shuffle(IQ_AN_SHAPES_POOL.slice()).slice(0, 3), colours };
@@ -171,21 +174,26 @@ function iqAnPairOdd(tier){
   throw new Error('iqAnPairOdd: no valid question.');
 }
 
-// ----- the pool: nine older mechanics + the three designs -----
+// ----- the pool: the three designs -----
 const IQ_AN_DESIGNS = [
   { key: 'classic', minTier: 1, weight: 12, make: iqAnClassic },
   { key: 'two-examples', minTier: 3, weight: 9, make: iqAnTwoExamples },
   { key: 'pair-odd', minTier: 3, weight: 9, make: iqAnPairOdd }
 ];
+// every group of shapes in a question respects the hard limit; a question that breaks it is a defect, never shown
+function iqAnAssertLimit(q){
+  const states = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat());
+  if (states.some(st => st && st.count > IQ_AN_MAX_COUNT)) throw new Error('iqAnalogyPick: a group has more than ' + IQ_AN_MAX_COUNT + ' shapes.');
+}
 function iqAnalogyPick(tier){
   const pool = [];
   IQ_AN_DESIGNS.filter(d => d.minTier <= tier).forEach(d => { for (let i = 0; i < d.weight; i++) pool.push({ key: d.key, make: d.make }); });
-  IQ_ANALOGY_MECHANICS.filter(m => m.minTier <= tier).forEach((m, i) => pool.push({ key: 'legacy:' + i, make: () => m.fn() }));
   const fresh = IQ_AN_AVOID_REPEAT ? pool.filter(p => p.key !== IQ_AN_LAST.design) : pool;
   const chosen = pickOne(fresh.length ? fresh : pool);
   const q = chosen.make(tier);
+  iqAnAssertLimit(q);
   IQ_AN_LAST.design = chosen.key;
-  IQ_AN_LAST.rule = q.rule ? iqAnKey(q.rule) : null;
+  IQ_AN_LAST.rule = iqAnKey(q.rule);
   return q;
 }
 

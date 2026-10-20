@@ -1,5 +1,5 @@
 'use strict';
-// Focused tests of the upgraded shape-analogies game (rule-library engine + the nine older mechanics).
+// Focused tests of the shape-analogies game (the rule-library engine; the nine older mechanics were removed).
 // The rules are rebuilt HERE with test-side code (their own step functions and their own enumeration of the library) and every
 // generated question is checked against them:
 //   - the library has 167 rules in "arrow" questions and 77 in "shapes" questions (counted independently);
@@ -24,7 +24,7 @@ const ORDER = ['count', 'shape', 'colour', 'size', 'rot'];
 const OPS = { count: ['+1', '+2', 'x2', '-1', 'half'], shape: ['+1', '-1'], colour: ['pair', 'skip2'], size: ['flip'], rot: ['+90', '-90', '+45', '+135', 'byCount', 'mod3'] };
 function stepValue(attr, op, st){
   switch (attr){
-    case 'count': { const c = st.count; const n = { '+1': c + 1, '+2': c + 2, 'x2': c * 2, '-1': c - 1, 'half': c % 2 ? -1 : c / 2 }[op]; return n >= 1 && n <= 6 ? n : null; }
+    case 'count': { const c = st.count; const n = { '+1': c + 1, '+2': c + 2, 'x2': c * 2, '-1': c - 1, 'half': c % 2 ? -1 : c / 2 }[op]; return n >= 1 && n <= 4 ? n : null; }
     case 'shape': return (st.shape + { '+1': 1, '-1': 2 }[op]) % 3;
     case 'colour': return op === 'pair' ? (st.colour % 2 ? st.colour - 1 : st.colour + 1) : (st.colour + 2) % 4;
     case 'size': return st.size ? 0 : 1;
@@ -52,6 +52,8 @@ function checkQuestion(q){
   if (!lib.some(r => ruleKey(r) === ruleKey(rule))) e.push('the rule is not in the library');
   if (q.ctx.colours.length !== 4 || new Set(q.ctx.colours).size !== 4 || q.ctx.shapes.length !== 3 || new Set(q.ctx.shapes).size !== 3) e.push('palette');
   const sees = st => look(q.ctx, st);
+  const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
+  if (all.some(st => st.count < 1 || st.count > 4)) e.push('a group has more than 4 shapes');
   if (q.design === 'classic' || q.design === 'two-examples'){
     if (!same(apply(rule, q.A), q.A2)) e.push("A' is not the rule applied to A");
     if (!same(apply(rule, q.B), q.B2)) e.push("B' is not the rule applied to B");
@@ -136,25 +138,26 @@ function run(){
     }
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.slice(0, 3).join(' | ') : 'prompt/option pictures, one correct answer, rule text' };
   });
-  test('ANA-6 pool and variety: the nine older mechanics are still drawn; the new designs wait for level 3; the same design never comes twice in a row; no rule repeats back to back', () => {
-    const p = H.loadProject(); p.seed(86); const bad = []; let legacy = 0, total = 0, repeatsD = 0, repeatsR = 0, prevD = null, prevR = null; const byTier = {};
+  test('ANA-6 pool and variety: only the rule-library designs are drawn (the nine older mechanics are gone); the new designs wait for level 3; the same design never comes twice in a row at levels 3+; no rule repeats back to back', () => {
+    const p = H.loadProject(); p.seed(86); const bad = []; let total = 0, repeatsD = 0, repeatsR = 0, prevD = null, prevR = null; const byTier = {};
     for (let t = 1; t <= 7; t++){
       p.evalIn('IQ_AN_LAST.design = null; IQ_AN_LAST.rule = null'); prevD = null; prevR = null; byTier[t] = new Set();
       for (let i = 0; i < 400; i++){
-        const q = p.ctx.iqAnalogyPick(t), d = q.design || 'legacy'; total++;
-        if (!q.design) legacy++; byTier[t].add(d);
-        if (d !== 'legacy' && q.rule && prevR === ruleKey(q.rule)) repeatsR++;
-        if (p.evalIn('IQ_AN_LAST.design') === prevD && prevD !== null) repeatsD++;
-        prevD = p.evalIn('IQ_AN_LAST.design'); prevR = q.rule ? ruleKey(q.rule) : null;
+        const q = p.ctx.iqAnalogyPick(t); total++;
+        if (!q.design) bad.push('a question without a design at level ' + t);
+        byTier[t].add(q.design);
+        if (prevR === ruleKey(q.rule)) repeatsR++;
+        const d = p.evalIn('IQ_AN_LAST.design'); if (t >= 3 && d === prevD) repeatsD++;
+        prevD = d; prevR = ruleKey(q.rule);
       }
     }
-    if (!legacy) bad.push('the older mechanics are never drawn');
-    [1, 2].forEach(t => { if (byTier[t].has('two-examples') || byTier[t].has('pair-odd')) bad.push('new designs at level ' + t); });
-    [3, 4, 5, 6, 7].forEach(t => { if (!byTier[t].has('two-examples') || !byTier[t].has('pair-odd')) bad.push('new designs missing at level ' + t); });
-    if (p.evalIn('IQ_ANALOGY_MECHANICS.length') !== 9) bad.push('the older mechanics are not all registered');
+    if (p.evalIn("typeof IQ_ANALOGY_MECHANICS") !== 'undefined') bad.push('the older mechanics still exist');
+    if (p.evalIn("typeof generateAnalogy") !== 'undefined') bad.push('generateAnalogy still exists');
+    [1, 2].forEach(t => { if ([...byTier[t]].some(d => d !== 'classic')) bad.push('new designs at level ' + t); });
+    [3, 4, 5, 6, 7].forEach(t => { if (!byTier[t].has('classic') || !byTier[t].has('two-examples') || !byTier[t].has('pair-odd')) bad.push('a design is missing at level ' + t); });
     if (repeatsD) bad.push(repeatsD + ' designs repeated in a row');
     if (repeatsR) bad.push(repeatsR + ' rules repeated in a row');
-    return { pass: !bad.length, info: total + ' questions | older mechanics ' + (100 * legacy / total).toFixed(0) + '%' + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+    return { pass: !bad.length, info: total + ' questions' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : '') };
   });
   test('ANA-7 shapes fit: every shape type at every scale up to 1.5, every count and several turns stays inside its drawing area, outline included', () => {
     const p = H.loadProject(), bad = []; let checked = 0;
@@ -188,14 +191,22 @@ function run(){
     }
     return { pass: !bad.length, info: checked + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ' all inside') };
   });
-  test('ANA-8 the nine older mechanics: the four answers of every question are four different pictures', () => {
-    const p = H.loadProject(); p.seed(88); const bad = [];
-    const mechs = p.evalIn('IQ_ANALOGY_MECHANICS');
-    mechs.forEach((m, i) => { for (let k = 0; k < Math.round(N / 3); k++){
-      const q = m.fn(), wrong = p.ctx.iqSanitizeDistractors(q.correctBprime, q.wrongBprimes), shown = [q.correctBprime].concat(wrong).map(s => p.ctx.renderShapeSVG(s));
-      if (new Set(shown).size !== 4){ bad.push('mechanic ' + i + ' (level ' + m.minTier + '): two answers look alike'); break; }
-    } });
-    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : '9 mechanics x ' + Math.round(N / 3) + ' questions, always four different answers' };
+  test('ANA-8 hard limit: no group in any picture of any question holds more than 4 shapes (examples and all answers), and the real category renderer never draws more', () => {
+    const p = H.loadProject(); p.seed(88); const bad = []; let groups = 0; const seenCounts = new Set();
+    const cat = p.evalIn('IQ_CATEGORIES').find(c => c.key === 'analogy');
+    for (let k = 0; k < N; k++){
+      const t = 1 + (k % 7), q = p.ctx.iqAnalogyPick(t);
+      const states = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
+      states.forEach(st => { groups++; seenCounts.add(st.count); if (st.count > 4 || st.count < 1) bad.push('count ' + st.count + ' at level ' + t); });
+      if (k < 60){                                                          // and through the real renderer: count the drawn copies in every picture
+        const prompt = p.ctx.document.createElement('div'), opts = p.ctx.document.createElement('div');
+        cat.renderQuestion(t, prompt, opts, () => {});
+        [prompt.innerHTML].concat(opts.children.map(b => b.innerHTML)).forEach(h => { (h.match(/<svg[^>]*>.*?<\/svg>/g) || []).forEach(svg => { if ((svg.match(/<g transform="translate/g) || []).length > 4) bad.push('more than 4 copies drawn in one picture'); }); });
+      }
+      if (bad.length > 3) break;
+    }
+    if (!seenCounts.has(4) || !seenCounts.has(1)) bad.push('counts seen: ' + [...seenCounts].join(','));
+    return { pass: !bad.length, info: groups + ' groups checked, counts seen ' + [...seenCounts].sort().join(',') + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : '') };
   });
   return out;
 }
