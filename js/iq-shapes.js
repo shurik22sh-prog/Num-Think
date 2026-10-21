@@ -118,6 +118,70 @@ function iqGlyphPoints(id, rotation, mirror, cx, cy, radius){
   return pts.map(([x, y]) => { const mx = mirror ? -x : x; return (cx + k * (mx * c - y * s)).toFixed(1) + ',' + (cy + k * (mx * s + y * c)).toFixed(1); }).join(' ');
 }
 
+// ----- convex polygon geometry for the "logic" (two overlapping shapes) and "parts" (a shape cut into pieces) figures -----
+// A shape is a regular polygon listed clockwise on the screen; a circle is a 48-sided one (the error is a fraction of a pixel).
+const IQ_POLY_SIDES = { circle: 48, triangle: 3, square: 4, pentagon: 5, hexagon: 6 };
+const IQ_POLY_START = { circle: -90, triangle: -90, square: -45, pentagon: -90, hexagon: 0 };       // degrees of the first corner: a square stands on its side, a triangle points up
+function iqRegularPoly(kind, cx, cy, r){
+  const n = IQ_POLY_SIDES[kind], a0 = IQ_POLY_START[kind];
+  return Array.from({ length: n }, (_, i) => { const a = (a0 + i * 360 / n) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+}
+const iqPolyArea = poly => Math.abs(poly.reduce((s, p, i) => { const q = poly[(i + 1) % poly.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+const iqPolyCentroid = poly => [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length];
+const iqPolyPoints = poly => poly.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+const iqPolyPath = polys => polys.map(poly => 'M' + poly.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' Z').join(' ');
+// the part of a polygon on the side of the line through (px, py) that the normal (nx, ny) points to
+function iqClipHalf(poly, px, py, nx, ny){
+  const out = [], side = p => (p[0] - px) * nx + (p[1] - py) * ny;
+  poly.forEach((cur, i) => {
+    const prev = poly[(i + poly.length - 1) % poly.length], dc = side(cur), dp = side(prev);
+    if ((dc >= 0) !== (dp >= 0)){ const k = dp / (dp - dc); out.push([prev[0] + k * (cur[0] - prev[0]), prev[1] + k * (cur[1] - prev[1])]); }
+    if (dc >= 0) out.push(cur);
+  });
+  return out;
+}
+function iqClipConvex(subject, clip){                                                  // the common part of two convex polygons
+  const c = iqPolyCentroid(clip); let out = subject;
+  for (let i = 0; i < clip.length && out.length; i++){
+    const p = clip[i], q = clip[(i + 1) % clip.length]; let nx = -(q[1] - p[1]), ny = q[0] - p[0];
+    if ((c[0] - p[0]) * nx + (c[1] - p[1]) * ny < 0){ nx = -nx; ny = -ny; }
+    out = iqClipHalf(out, p[0], p[1], nx, ny);
+  }
+  return out;
+}
+function iqSegmentOutside(p, q, poly){                                                // the pieces of the segment p-q that lie outside a convex polygon
+  const c = iqPolyCentroid(poly); let t0 = 0, t1 = 1;
+  for (let i = 0; i < poly.length; i++){
+    const v = poly[i], w = poly[(i + 1) % poly.length]; let nx = -(w[1] - v[1]), ny = w[0] - v[0];
+    if ((c[0] - v[0]) * nx + (c[1] - v[1]) * ny < 0){ nx = -nx; ny = -ny; }
+    const num = (p[0] - v[0]) * nx + (p[1] - v[1]) * ny, d = (q[0] - p[0]) * nx + (q[1] - p[1]) * ny;
+    if (Math.abs(d) < 1e-9){ if (num < 0) return [[p, q]]; }
+    else if (d > 0) t0 = Math.max(t0, -num / d); else t1 = Math.min(t1, -num / d);
+  }
+  if (t0 >= t1) return [[p, q]];
+  const at = t => [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])], out = [];
+  if (t0 > 1e-6) out.push([p, at(t0)]);
+  if (t1 < 1 - 1e-6) out.push([at(t1), q]);
+  return out;
+}
+// where the two shapes of a "logic" figure sit: the first on one side of the centre, the second on the other (dir: 0 left-right, 90 top-bottom, 45 diagonal)
+const IQ_LOGIC_R = 0.30, IQ_LOGIC_D = 0.13;             // radius of each shape and distance of each centre from the middle, as a share of the size (scale 1.3, the largest used, stays inside the drawing area)
+const IQ_PARTS_R = 0.34, IQ_PARTS_GAP = 0.08;           // radius of a cut shape, and how far each piece moves away from the middle
+function iqLogicShapes(a, b, dir, cx, cy, R, d){
+  const ang = dir * Math.PI / 180, ux = Math.cos(ang), uy = Math.sin(ang);
+  return [iqRegularPoly(a, cx - d * ux, cy - d * uy, R), iqRegularPoly(b, cx + d * ux, cy + d * uy, R)];
+}
+// the pieces of a cut shape (cut: 'v' two vertical halves, 'd' two diagonal halves, 'q' four quarters, 't' three wedges from the centre)
+function iqCutPieces(poly, cx, cy, cut){
+  const S = Math.SQRT1_2;
+  let planes;
+  if (cut === 'v') planes = [[[1, 0]], [[-1, 0]]];
+  else if (cut === 'd') planes = [[[S, -S]], [[-S, S]]];
+  else if (cut === 'q') planes = [[[1, 0], [0, 1]], [[-1, 0], [0, 1]], [[1, 0], [0, -1]], [[-1, 0], [0, -1]]];
+  else planes = [0, 1, 2].map(k => { const a = (-90 + 120 * k) * Math.PI / 180, b = (-90 + 120 * (k + 1)) * Math.PI / 180; return [[-Math.sin(a), Math.cos(a)], [Math.sin(b), -Math.cos(b)]]; });
+  return planes.map(ns => ns.reduce((pc, n) => iqClipHalf(pc, cx, cy, n[0], n[1]), poly));
+}
+
 // extra: { glyph, mirror, hollow } - the new kinds of change (reflection, filled <-> outline only)
 function iqRichShapeUnit(type, color, rotation, scale, size, extra){
   extra = extra || {};
@@ -143,6 +207,34 @@ function iqRichShapeUnit(type, color, rotation, scale, size, extra){
       return '<path d="M'+cx+' '+cy+' L'+(cx + outerR * Math.cos(a0)).toFixed(1)+' '+(cy + outerR * Math.sin(a0)).toFixed(1)+' A'+outerR.toFixed(1)+' '+outerR.toFixed(1)+' 0 0 1 '+
         (cx + outerR * Math.cos(a1)).toFixed(1)+' '+(cy + outerR * Math.sin(a1)).toFixed(1)+' Z" fill="'+cols[i]+'" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>';
     }).join('') + frame;
+  }
+  if (type === 'logic'){           // two overlapping shapes, or what one logical operation leaves of them: extra = { a, b (shape types), dir, op, color2, color3, hollow }
+    const R = size * IQ_LOGIC_R * scale, d = size * IQ_LOGIC_D * scale, op = extra.op || 'none', c1 = color, c2 = extra.color2 || color, c3 = extra.color3 || color;
+    const [A, B] = iqLogicShapes(extra.a, extra.b, extra.dir || 0, cx, cy, R, d), I = iqClipConvex(A, B);
+    const paint = c => extra.hollow ? ' fill="none" stroke="'+c+'" stroke-width="3.4" stroke-linejoin="round"' : ' fill="'+c+'" stroke="'+c+'" stroke-width="2.5" stroke-linejoin="round"';
+    const poly = (p, c) => '<polygon points="'+iqPolyPoints(p)+'"'+paint(c)+'/>';
+    const evenodd = (p, c) => '<path d="'+iqPolyPath([p, I])+'" fill-rule="evenodd"'+paint(c)+'/>';          // a shape without the common part
+    if (op === 'and') return poly(I, c3);
+    if (op === 'xor') return evenodd(A, c1) + evenodd(B, c2);
+    if (op === 'aNotB') return evenodd(A, c1);
+    if (op === 'bNotA') return evenodd(B, c2);
+    if (op === 'union'){
+      if (!extra.hollow) return poly(A, c3) + poly(B, c3);
+      const edges = (P, Q) => P.flatMap((p, i) => iqSegmentOutside(p, P[(i + 1) % P.length], Q));                  // the outline of the union: the edges of each shape outside the other
+      return '<path d="'+edges(A, B).concat(edges(B, A)).map(([p, q]) => 'M'+p[0].toFixed(1)+' '+p[1].toFixed(1)+' L'+q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' ')+'" fill="none" stroke="'+c3+'" stroke-width="3.4" stroke-linecap="round"/>';
+    }
+    const given = (p, c) => '<polygon points="'+iqPolyPoints(p)+'" fill="'+(extra.hollow ? 'none' : c)+'" fill-opacity="0.35" stroke="'+c+'" stroke-width="3" stroke-linejoin="round"/>';
+    return given(A, c1) + given(B, c2);
+  }
+  if (type === 'parts'){           // a shape, whole or cut into pieces: extra = { shape, cut (0 whole, 1-4 v d q t with the pieces moved apart, 5-8 the same cut but the pieces not moved), color2, hollow }
+    const R = size * IQ_PARTS_R * scale, gap = size * IQ_PARTS_GAP * scale, cut = extra.cut || 0, c2 = extra.color2 || color, P = iqRegularPoly(extra.shape, cx, cy, R);
+    const paint = c => extra.hollow ? ' fill="#ffffff" stroke="'+c+'" stroke-width="3.4" stroke-linejoin="round"' : ' fill="'+c+'" fill-opacity="0.9" stroke="'+c+'" stroke-width="2.5" stroke-linejoin="round"';
+    if (!cut) return '<polygon points="'+iqPolyPoints(P)+'"'+paint(color)+'/>';
+    const move = cut <= 4 ? gap : 0;
+    return iqCutPieces(P, cx, cy, 'vdqt'[(cut - 1) % 4]).map((piece, i) => {
+      const m = iqPolyCentroid(piece), dx = m[0] - cx, dy = m[1] - cy, len = Math.hypot(dx, dy) || 1, sx = dx / len * move, sy = dy / len * move;
+      return '<polygon points="'+iqPolyPoints(piece.map(p => [p[0] + sx, p[1] + sy]))+'"'+paint(i % 2 ? c2 : color)+'/>';
+    }).join('');
   }
   if (type === 'grid'){            // a 3 x 3 board for the merge questions: extra.cells = nine colours ('' for an empty square)
     const board = size * 0.8 * scale, pitch = board / 3, x0 = cx - board / 2, y0 = cy - board / 2;
@@ -224,7 +316,9 @@ function iqSpecsEqual(a, b){
     (a.scale||1) === (b.scale||1) && (a.count||1) === (b.count||1) &&
     (a.glyph||'') === (b.glyph||'') && !!a.mirror === !!b.mirror && !!a.hollow === !!b.hollow &&
     (a.outer||'') === (b.outer||'') && (a.inner||'') === (b.inner||'') && (a.color2||'') === (b.color2||'') &&
-    (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join() && (a.cells||[]).join() === (b.cells||[]).join();
+    (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join() && (a.cells||[]).join() === (b.cells||[]).join() &&
+    (a.a||'') === (b.a||'') && (a.b||'') === (b.b||'') && (a.dir||0) === (b.dir||0) && (a.op||'') === (b.op||'') && (a.color3||'') === (b.color3||'') &&
+    (a.shape||'') === (b.shape||'') && (a.cut||0) === (b.cut||0);
 }
 
 /* ============ Composite multi-part figures (position-rearrangement questions) ============ */

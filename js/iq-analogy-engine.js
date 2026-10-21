@@ -24,27 +24,33 @@
 //   nested   a shape inside another shape: the step "swap" puts the inner shape outside and the outer one inside
 //   spin     a circle in three coloured regions (sectors or rings): the steps "+1" / "-1" move the colours round the regions
 //   shapes   a plain shape (no turns or reflections, so its rules always contain the fill step)
+//   logic    two overlapping shapes; the step "op" keeps what a logical operation leaves of them (both = AND, one of them = XOR, first without second, ...)
+//   parts    a shape that the step "cut" cuts into pieces that move apart (or, in the other direction, "join" puts the pieces back together)
+// logic and parts come in from level 4, like the heavier designs.
 
 // HARD LIMIT: a group never holds more than this many shapes (in the pictures shown, the examples AND every answer).
 // More than four makes the tiles crowded and the shapes too small to compare.
 const IQ_AN_MAX_COUNT = 4;
 // Fine figures (asymmetric outlines, shapes inside shapes, coloured regions) are hard to read when drawn small, so they use at most two copies
 const IQ_AN_GLYPH_MAX_COUNT = 2;
-const IQ_AN_CAP = { glyph: IQ_AN_GLYPH_MAX_COUNT, nested: 2, spin: 2, shapes: IQ_AN_MAX_COUNT };
+const IQ_AN_CAP = { glyph: IQ_AN_GLYPH_MAX_COUNT, nested: 2, spin: 2, shapes: IQ_AN_MAX_COUNT, logic: 1, parts: 1 };      // logic: two shapes in one picture; parts: at most four pieces
 let IQ_AN_AVOID_REPEAT = true;                       // switchable for tests that need seeded sequences
 const IQ_AN_LAST = { design: null, rule: null };
-const IQ_AN_ATTRS = ['orient', 'nest', 'cycle', 'colour', 'size', 'fill', 'count'];
+const IQ_AN_ATTRS = ['orient', 'nest', 'cycle', 'op', 'cut', 'colour', 'size', 'fill', 'count'];
 const IQ_AN_OPS = {
   orient: ['+90', '-90', '180', 'flipH', 'flipV'],            // quarter-turn clockwise / anticlockwise, half-turn, reflection left-right, reflection top-bottom
   nest: ['swap'],                                              // the inner shape and the outer shape change places
   cycle: ['+1', '-1'],                                         // the colours of the three regions move round: each colour to the next region / the previous one
+  op: ['and', 'xor', 'aNotB', 'bNotA', 'union'],               // two overlapping shapes: only the common part / only the parts that are in one shape / the first without the second / the second without the first / the union as one shape
+  cut: ['v', 'd', 'q', 't', 'join'],                           // cut into two vertical halves / two diagonal halves / four quarters / three wedges (the pieces move apart), or the pieces join into the whole shape
   colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1']
 };
 // the attributes a figure of each kind has, and the classic visual change every rule of that kind must contain
-const IQ_AN_MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'] };
-const IQ_AN_MUST_HAVE = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'] };
+const IQ_AN_MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'], logic: ['op', 'colour', 'size', 'fill'], parts: ['cut', 'colour', 'size', 'fill'] };
+const IQ_AN_MUST_HAVE = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'], logic: ['op'], parts: ['cut'] };
 // the six ways to give three colours to the three regions: the first three are turns of the first one, the last three are reflections
 const IQ_AN_PERMS = [[0, 1, 2], [2, 0, 1], [1, 2, 0], [0, 2, 1], [2, 1, 0], [1, 0, 2]];
+const IQ_AN_STATE_KEYS = IQ_AN_ATTRS.concat(['cfg']);          // cfg: which of the four shapes (or pairs of shapes) of the question the figure is
 const iqAnPermIndex = p => IQ_AN_PERMS.findIndex(q => q.join() === p.join());
 const IQ_AN_SHAPE_TYPES = ['square', 'triangle', 'pentagon', 'hexagon', 'circle'];
 // shape-in-shape pairs: the inner shape is small, so only shapes that cannot be mistaken for each other at that size (no circle with a pentagon)
@@ -68,6 +74,8 @@ function iqAnOrient(op, o){
 function iqAnStep(attr, op, st){
   if (attr === 'orient') return iqAnOrient(op, st.orient);
   if (attr === 'nest') return st.nest < 2 ? 1 - st.nest : null;
+  if (attr === 'op') return st.op === 0 ? IQ_AN_OPS.op.indexOf(op) + 1 : null;                      // only a figure that has not been processed yet can be processed
+  if (attr === 'cut'){ if (op === 'join') return st.cut >= 1 && st.cut <= 4 ? 0 : null; return st.cut === 0 ? IQ_AN_OPS.cut.indexOf(op) + 1 : null; }
   if (attr === 'cycle'){ const q = IQ_AN_PERMS[st.cycle]; return iqAnPermIndex(op === '+1' ? [q[2], q[0], q[1]] : [q[1], q[2], q[0]]); }
   if (attr === 'colour') return st.colour ^ 1;
   if (attr === 'size' || attr === 'fill') return 1 - st[attr];
@@ -79,7 +87,7 @@ function iqAnApply(rule, st){
   for (const [attr, op] of rule){ const v = iqAnStep(attr, op, out); if (v === null) return null; out[attr] = v; }
   return out;
 }
-const iqAnSame = (a, b) => a && b && IQ_AN_ATTRS.every(k => a[k] === b[k]);
+const iqAnSame = (a, b) => a && b && IQ_AN_STATE_KEYS.every(k => a[k] === b[k]);
 const iqAnKey = rule => rule.map(s => s.join(' ')).join(' | ');
 // the whole library for one mode
 const IQ_AN_LIBRARY = {};
@@ -96,16 +104,43 @@ function iqAnLibrary(mode){
   return out;
 }
 const iqAnFits = (library, pairs) => library.filter(rule => pairs.every(([a, b]) => iqAnSame(iqAnApply(rule, a), b)));
-const iqAnRandomState = mode => ({ orient: mode === 'glyph' ? randInt(0, 7) : 0, nest: mode === 'nested' ? randInt(0, 1) : 0, cycle: mode === 'spin' ? randInt(0, 5) : 0,
-  colour: mode === 'spin' ? randInt(0, 1) : randInt(0, 3), size: randInt(0, 1), fill: mode === 'spin' ? 0 : randInt(0, 1), count: randInt(1, IQ_AN_CAP[mode]), cap: IQ_AN_CAP[mode] });   // spin has no colour or fill step: pinned, so two states never differ in something nobody can see
+// `steps` (the rule, or the part of it that a figure goes through) says what the figure must be able to do: a cut needs a whole shape, a join needs a cut one
+function iqAnRandomState(mode, steps){
+  const cutStep = (steps || []).find(s => s[0] === 'cut');
+  return { op: 0, cut: mode === 'parts' ? (cutStep ? (cutStep[1] === 'join' ? randInt(1, 4) : 0) : randInt(0, 4)) : 0, cfg: mode === 'logic' || mode === 'parts' ? randInt(0, 3) : 0,
+    orient: mode === 'glyph' ? randInt(0, 7) : 0, nest: mode === 'nested' ? randInt(0, 1) : 0, cycle: mode === 'spin' ? randInt(0, 5) : 0,
+    colour: mode === 'spin' ? randInt(0, 1) : randInt(0, 3), size: randInt(0, 1), fill: mode === 'spin' ? 0 : randInt(0, 1), count: randInt(1, IQ_AN_CAP[mode]), cap: IQ_AN_CAP[mode] };   // spin has no colour or fill step: pinned, so two states never differ in something nobody can see
+}
+// the pairs of shapes for the logic figure: every one of its three regions (only the first shape, only the second, both) must be big enough to see and to colour
+let IQ_AN_LOGIC_PAIRS = null;
+function iqAnLogicPairs(dir){
+  if (!IQ_AN_LOGIC_PAIRS){
+    IQ_AN_LOGIC_PAIRS = {};
+    [0, 90, 45].forEach(d => {
+      IQ_AN_LOGIC_PAIRS[d] = [];
+      const types = ['circle', 'square', 'triangle', 'pentagon'];
+      types.forEach((a, i) => types.forEach((b, j) => {
+        if (j <= i) return;
+        const [A, B] = iqLogicShapes(a, b, d, 40, 40, 80 * IQ_LOGIC_R, 80 * IQ_LOGIC_D), I = iqClipConvex(A, B);
+        const parts = [iqPolyArea(I), iqPolyArea(A) - iqPolyArea(I), iqPolyArea(B) - iqPolyArea(I)];
+        if (Math.min(...parts) >= 300) IQ_AN_LOGIC_PAIRS[d].push([a, b]);
+      }));
+    });
+  }
+  return IQ_AN_LOGIC_PAIRS[dir];
+}
 function iqAnContext(mode){
   const pairs = shuffle(IQ_COLOR_PAIRS.slice()).slice(0, 2), colours = [pairs[0][0], pairs[0][1], pairs[1][0], pairs[1][1]];
+  const dir = mode === 'logic' ? pickOne([0, 90, 45]) : null;
   return { mode, colours,
     glyph: mode === 'glyph' ? pickOne(Object.keys(IQ_GLYPHS)) : null,
     shape: mode === 'shapes' ? pickOne(IQ_AN_SHAPE_TYPES) : null,
     types: mode === 'nested' ? shuffle(pickOne(IQ_AN_NEST_TYPES).slice()) : null,           // [shape 0, shape 1]: at nest 0 shape 0 is outside and shape 1 inside
     layout: mode === 'spin' ? pickOne(['sectors', 'rings']) : null,
-    palette: mode === 'spin' ? shuffle([0, 1, 2, 3]).slice(0, 3) : null };                   // the three colours (numbers into `colours`) that move round
+    palette: mode === 'spin' ? shuffle([0, 1, 2, 3]).slice(0, 3) : null,                    // the three colours (numbers into `colours`) that move round
+    dir,                                                                                      // logic: where the second shape sits relative to the first (the same in every figure of the question)
+    pairs: mode === 'logic' ? shuffle(iqAnLogicPairs(dir).slice()).slice(0, 4).map(pr => shuffle(pr.slice())) : null,     // logic: the four pairs of shapes (state.cfg picks one)
+    shapes: mode === 'parts' ? shuffle(IQ_AN_SHAPE_TYPES.slice()).slice(0, 4) : null };      // parts: the four shapes (state.cfg picks one)
 }
 function iqAnSpec(ctx, st){
   const spec = { color: ctx.colours[st.colour], count: st.count, scale: st.size ? 1.3 : 1, hollow: !!st.fill };
@@ -115,6 +150,11 @@ function iqAnSpec(ctx, st){
     spec.type = 'nested'; spec.outer = ctx.types[o]; spec.inner = ctx.types[i]; spec.color = shapeColour(o); spec.color2 = shapeColour(i);
   }
   else if (ctx.mode === 'spin'){ spec.type = 'spin'; spec.layout = ctx.layout; spec.colors = IQ_AN_PERMS[st.cycle].map(i => ctx.colours[ctx.palette[i] ^ st.colour]); spec.hollow = false; }      // the colour step puts every colour next to its pair partner
+  else if (ctx.mode === 'logic'){                // the first shape has the colour of the state, the second the colour next to it, and what the operation leaves in the overlap is a third colour
+    const [a, b] = ctx.pairs[st.cfg];
+    spec.type = 'logic'; spec.a = a; spec.b = b; spec.dir = ctx.dir; spec.op = st.op ? IQ_AN_OPS.op[st.op - 1] : 'none'; spec.color2 = ctx.colours[st.colour ^ 1]; spec.color3 = ctx.colours[st.colour ^ 2];
+  }
+  else if (ctx.mode === 'parts'){ spec.type = 'parts'; spec.shape = ctx.shapes[st.cfg]; spec.cut = st.cut; spec.color2 = ctx.colours[st.colour ^ 1]; }
   else spec.type = ctx.shape;
   return spec;
 }
@@ -130,11 +170,13 @@ function iqAnForgot(rule, st){                                               // 
 // plausible mistakes that no neighbour rule produces:
 //   a swap that stopped half way (the inner shape came out, but the outer one did not go in - or the other way round);
 //   a colour that did not move: in the result of the other steps, two of the three regions exchange colours and one keeps its own
+//   a cut where the pieces did not move apart (the cut shape is drawn with its pieces still together)
 function iqAnMistakes(rule, st){
   const out = [];
-  rule.forEach(([attr], k) => {
+  rule.forEach(([attr, op], k) => {
     const base = iqAnApply(rule.filter((_, i) => i !== k), st);
     if (!base) return;
+    if (attr === 'cut' && op !== 'join') out.push(Object.assign({}, base, { cut: 5 + IQ_AN_OPS.cut.indexOf(op) }));
     if (attr === 'nest') [2, 3].forEach(n => out.push(Object.assign({}, base, { nest: n })));
     if (attr === 'cycle') [[0, 1], [0, 2], [1, 2]].forEach(([a, b]) => {
       const q = IQ_AN_PERMS[base.cycle].slice();
@@ -161,11 +203,19 @@ function iqAnDescribe(ctx, rule){
   const nm = c => IQ_AN_COLOUR_NAME[c] || c;
   const parts = rule.map(([attr, op]) => {
     if (attr === 'count') return op === '+1' ? 'נוספת עוד צורה אחת' : 'נעלמת צורה אחת';
+    if (attr === 'op'){
+      const side = { 0: ['השמאלית', 'הימנית'], 90: ['העליונה', 'התחתונה'], 45: ['השמאלית-עליונה', 'הימנית-תחתונה'] }[ctx.dir];
+      return { and: 'נשאר רק אזור החפיפה של שתי הצורות, בצבע נוסף', xor: 'החפיפה נעלמת, ונשארים רק האזורים שבצורה אחת בלבד (כל אחד בצבע הצורה שלו)',
+        aNotB: 'נשאר רק החלק של הצורה ה' + side[0] + ' שלא חופף לצורה ה' + side[1], bNotA: 'נשאר רק החלק של הצורה ה' + side[1] + ' שלא חופף לצורה ה' + side[0],
+        union: 'שתי הצורות מתאחדות לצורה אחת בצבע נוסף' }[op];
+    }
+    if (attr === 'cut') return { v: 'הצורה נחתכת לשני חצאים (חיתוך אנכי) והחצאים מתרחקים זה מזה', d: 'הצורה נחתכת לשני חצאים (חיתוך באלכסון) והחצאים מתרחקים זה מזה',
+      q: 'הצורה נחתכת לארבעה רבעים והרבעים מתרחקים זה מזה', t: 'הצורה נחתכת לשלושה חלקים שנפגשים במרכז, והחלקים מתרחקים זה מזה', join: 'החלקים מתחברים בחזרה לצורה אחת שלמה' }[op];
     if (attr === 'nest') return 'הצורה הפנימית יוצאת החוצה והצורה החיצונית נכנסת פנימה (הצורות מתחלפות, כל אחת שומרת על הצבע שלה)';
     if (attr === 'cycle') return ctx.layout === 'rings'
       ? (op === '+1' ? 'הצבעים זזים פנימה: הצבע של הטבעת החיצונית עובר לאמצעית, האמצעית לפנימית והפנימית לחיצונית' : 'הצבעים זזים החוצה: הצבע של הטבעת הפנימית עובר לאמצעית, האמצעית לחיצונית והחיצונית לפנימית')
       : (op === '+1' ? 'הצבעים מסתובבים עם כיוון השעון: הצבע של כל גזרה עובר לגזרה הבאה' : 'הצבעים מסתובבים נגד כיוון השעון: הצבע של כל גזרה עובר לגזרה הקודמת');
-    if (attr === 'colour') return ctx.mode === 'nested' ? 'שתי הצורות מחליפות ביניהן צבעים (' + nm(ctx.colours[0]) + ' ו' + nm(ctx.colours[1]) + ', ' + nm(ctx.colours[2]) + ' ו' + nm(ctx.colours[3]) + ')'
+    if (attr === 'colour') return ctx.mode === 'nested' || ctx.mode === 'logic' ? 'שתי הצורות מחליפות ביניהן צבעים (' + nm(ctx.colours[0]) + ' ו' + nm(ctx.colours[1]) + ', ' + nm(ctx.colours[2]) + ' ו' + nm(ctx.colours[3]) + ')'
       : 'הצבע מתחלף בצבע הצמוד לו בזוג: ' + nm(ctx.colours[0]) + ' ו' + nm(ctx.colours[1]) + ', ' + nm(ctx.colours[2]) + ' ו' + nm(ctx.colours[3]);
     if (attr === 'size') return 'הצורה מתחלפת בין קטנה לגדולה';
     if (attr === 'fill') return ctx.mode === 'nested' ? 'הצורה הפנימית מלאה הופכת לחלולה (רק קו מתאר), וחלולה הופכת למלאה' : 'צורה מלאה הופכת לחלולה (רק קו מתאר), וחלולה הופכת למלאה';
@@ -185,18 +235,20 @@ function iqAnRule(library, tier){
   if (!pool.length) pool = library.filter(r => r.length === n);
   return pickOne(pool);
 }
-// turns and reflections, inner/outer swaps and rotating colours carry the game side by side; plain shapes (fill only) are the minor kind
+// turns and reflections, inner/outer swaps and rotating colours carry the game side by side; plain shapes (fill only) are the minor kind.
+// From level 4 the logic (two overlapping shapes) and parts (a shape cut into pieces) figures join in, about a seventh of the questions each.
 const IQ_AN_MODE_WEIGHTS = [['glyph', 40], ['nested', 25], ['spin', 25], ['shapes', 10]];
-function iqAnPickMode(){
+const IQ_AN_MODE_WEIGHTS_4 = [['glyph', 29], ['nested', 17], ['spin', 17], ['shapes', 8], ['logic', 14], ['parts', 15]];
+function iqAnPickMode(tier){
   let r = Math.random() * 100;
-  for (const [mode, w] of IQ_AN_MODE_WEIGHTS){ if (r < w) return mode; r -= w; }
+  for (const [mode, w] of (tier >= 4 ? IQ_AN_MODE_WEIGHTS_4 : IQ_AN_MODE_WEIGHTS)){ if (r < w) return mode; r -= w; }
   return 'glyph';
 }
 function iqAnClassic(tier){
-  const mode = iqAnPickMode();                                                     // chosen once: a kind of figure whose examples are harder to find is not drawn less often
+  const mode = iqAnPickMode(tier);                                                     // chosen once: a kind of figure whose examples are harder to find is not drawn less often
   for (let attempt = 0; attempt < 400; attempt++){
     const library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, tier);
-    const A = iqAnRandomState(mode), B = iqAnRandomState(mode), A2 = iqAnApply(rule, A), B2 = iqAnApply(rule, B);
+    const A = iqAnRandomState(mode, rule), B = iqAnRandomState(mode, rule), A2 = iqAnApply(rule, A), B2 = iqAnApply(rule, B);
     if (!A2 || !B2 || iqAnSame(A, B) || iqAnSame(A, A2) || iqAnSame(B, B2)) continue;
     const fits = iqAnFits(library, [[A, A2]]);
     if (fits.some(f => { const r = iqAnApply(f, B); return r && !iqAnSame(r, B2); })) continue;           // the example must settle the answer
@@ -228,11 +280,11 @@ function iqAnSplitSteps(rule){                                                  
   return [rule.filter((_, i) => first.includes(i)), rule.filter((_, i) => !first.includes(i))];
 }
 function iqAnSplitRule(tier){
-  const mode = iqAnPickMode();
+  const mode = iqAnPickMode(Math.max(tier, 4));
   for (let attempt = 0; attempt < 800; attempt++){
     const library = iqAnLibrary(mode), partial = iqAnPartialLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
     const [S1, S2] = iqAnSplitSteps(rule);
-    const A = iqAnRandomState(mode), C = iqAnRandomState(mode), B = iqAnRandomState(mode);
+    const A = iqAnRandomState(mode, S1), C = iqAnRandomState(mode, S2), B = iqAnRandomState(mode, rule);
     const A2 = iqAnApply(S1, A), C2 = iqAnApply(S2, C), B2 = iqAnApply(rule, B), P1 = iqAnApply(S1, B), P2 = iqAnApply(S2, B);
     if (!A2 || !C2 || !B2 || !P1 || !P2 || iqAnSame(A, C) || iqAnSame(A, B) || iqAnSame(C, B) || iqAnSame(A, A2) || iqAnSame(C, C2) || iqAnSame(B, B2)) continue;
     const f1 = iqAnFits(partial, [[A, A2]]), f2 = iqAnFits(partial, [[C, C2]]);
@@ -246,12 +298,12 @@ function iqAnSplitRule(tier){
   throw new Error('iqAnSplitRule: no valid question.');
 }
 function iqAnPairOdd(tier){
-  const mode = iqAnPickMode();
+  const mode = iqAnPickMode(Math.max(tier, 4));
   for (let attempt = 0; attempt < 600; attempt++){
     const library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
     const near = iqAnNeighbours(rule, library);
     if (!near.length) continue;
-    const other = pickOne(near), states = [0, 1, 2, 3, 4].map(() => iqAnRandomState(mode));
+    const other = pickOne(near), states = [0, 1, 2, 3, 4].map(() => iqAnRandomState(mode, rule));
     const E = states[0], xs = states.slice(1), oddIndex = randInt(0, 3);
     const E2 = iqAnApply(rule, E);
     const pairs = xs.map((x, i) => [x, iqAnApply(i === oddIndex ? other : rule, x)]);
