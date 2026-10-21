@@ -3,8 +3,9 @@
 // The rules are rebuilt HERE with test-side code, and turns / reflections are checked GEOMETRICALLY: a figure is a list of points, and
 // "turn a quarter clockwise", "reflect left-right" ... are applied to the points themselves (not to the game's orient numbers), then compared
 // with what the game says the answer is. The renderer is checked the same way, from the polygon it really draws.
-//   - library: 79 rules with a glyph (turns, reflections, fill, colour, size, number) and 9 rules with a plain shape, counted independently;
-//     every rule has a turn, a reflection or a fill step; none of the removed arithmetic / modulo / odd-angle steps exists;
+//   - library: 79 rules with a glyph (turns, reflections, fill, colour, size, number), 9 with a plain shape, 14 with a shape in a shape (inner/outer
+//     swap) and 18 with three coloured regions (rotating colours), counted independently; every rule has the visual change of its kind;
+//     none of the removed arithmetic / modulo / odd-angle steps exists;
 //   - classic / two-examples / pair-odd: every question is checked against the independent library (right answer, unique rule, wrong answers
 //     are four different PICTURES, three wrong answers, never more than 4 shapes in a group);
 //   - rendering through the real renderer (fake DOM): 4 options, exactly one correct, the rule is shown after a correct answer;
@@ -32,36 +33,53 @@ function glyphPts(p, id, orient){                                   // the outli
   for (let i = 0; i < (orient & 3); i++) pts = pts.map(R4);
   return pts;
 }
-const ORDER = ['orient', 'colour', 'size', 'fill', 'count'];
-const OPS = { orient: ['+90', '-90', '180', 'flipH', 'flipV'], colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1'] };
-// a test-side figure: {pts (glyph outline or null), colour, size, fill, count}
-const figure = (p, ctx, st) => ({ pts: ctx.mode === 'glyph' ? glyphPts(p, ctx.glyph, st.orient) : null, colour: st.colour, size: st.size, fill: st.fill, count: st.count, cap: ctx.mode === 'glyph' ? 2 : 4 });
+const ORDER = ['orient', 'nest', 'cycle', 'colour', 'size', 'fill', 'count'];
+const OPS = { orient: ['+90', '-90', '180', 'flipH', 'flipV'], nest: ['swap'], cycle: ['+1', '-1'], colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1'] };
+const MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'] };
+const MUST = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'] };
+const CAPS = { glyph: 2, nested: 2, spin: 2, shapes: 4 };
+const PERMS_T = [[0, 1, 2], [2, 0, 1], [1, 2, 0], [0, 2, 1], [2, 1, 0], [1, 0, 2]];          // region -> palette colour, six ways
+// a test-side figure: {pts (glyph outline or null), colour, size, fill, count, cap, nest {outer, inner, cols} (shape in shape), regions (the colours of the three regions)}
+function figure(p, ctx, st){
+  const f = { pts: null, colour: st.colour, size: st.size, fill: st.fill, count: st.count, cap: CAPS[ctx.mode], nest: null, regions: null };
+  if (ctx.mode === 'glyph') f.pts = glyphPts(p, ctx.glyph, st.orient);
+  if (ctx.mode === 'nested'){
+    const sh = [[0, 1], [1, 0], [1, 1], [0, 0]][st.nest];                                          // [outer, inner] shape; 2 and 3 are the half-finished swaps
+    f.colour = null; f.nest = { outer: sh[0], inner: sh[1], cols: [st.colour, st.colour ^ 1] };
+  }
+  if (ctx.mode === 'spin'){ f.colour = null; f.fill = null; f.regions = PERMS_T[st.cycle].map(i => ctx.palette[i] ^ st.colour); }          // numbers into the four colours; a colour step puts each next to its partner
+  return f;
+}
 function stepFigure(attr, op, f){
   const o = Object.assign({}, f);
   if (attr === 'orient') o.pts = f.pts.map(GEOM[op]);
-  else if (attr === 'colour') o.colour = f.colour % 2 ? f.colour - 1 : f.colour + 1;
+  else if (attr === 'nest') o.nest = { outer: f.nest.inner, inner: f.nest.outer, cols: f.nest.cols };           // the two shapes change places, each keeps its colour
+  else if (attr === 'colour' && f.regions) o.regions = f.regions.map(i => i ^ 1);
+  else if (attr === 'cycle'){ const r = f.regions; o.regions = op === '+1' ? [r[2], r[0], r[1]] : [r[1], r[2], r[0]]; }  // +1: every colour moves to the next region
+  else if (attr === 'colour'){ if (f.nest) o.nest = { outer: f.nest.outer, inner: f.nest.inner, cols: [f.nest.cols[1], f.nest.cols[0]] }; else o.colour = f.colour % 2 ? f.colour - 1 : f.colour + 1; }
   else if (attr === 'size') o.size = 1 - f.size;
   else if (attr === 'fill') o.fill = 1 - f.fill;
   else { o.count = f.count + (op === '+1' ? 1 : -1); if (o.count < 1 || o.count > f.cap) return null; }
   return o;
 }
 const applyRule = (rule, f) => { let cur = f; for (const [a, op] of rule){ cur = cur && stepFigure(a, op, cur); } return cur; };
-const sameFig = (a, b) => a && b && a.colour === b.colour && a.size === b.size && a.fill === b.fill && a.count === b.count && (a.pts ? b.pts && ptsKey(a.pts) === ptsKey(b.pts) : !b.pts);
+const canon = f => JSON.stringify([f.pts ? ptsKey(f.pts) : null, f.colour, f.size, f.fill, f.count, f.nest, f.regions]);
+const sameFig = (a, b) => !!(a && b && canon(a) === canon(b));
 function library(mode){
-  const attrs = ORDER.filter(a => mode === 'glyph' || a !== 'orient'), rules = [];
+  const attrs = ORDER.filter(a => MODE_ATTRS[mode].includes(a)), rules = [];
   const sub = (from, chosen) => {
-    if (chosen.length >= 2 && chosen.some(s => s[0] === 'orient' || s[0] === 'fill')) rules.push(chosen);
+    if (chosen.length >= 2 && chosen.some(s => MUST[mode].includes(s[0]))) rules.push(chosen);
     if (chosen.length === 3) return;
     for (let i = from; i < attrs.length; i++) for (const op of OPS[attrs[i]]) sub(i + 1, chosen.concat([[attrs[i], op]]));
   };
   sub(0, []);
   return rules;
 }
-const LIB = { glyph: library('glyph'), shapes: library('shapes') };
+const LIB = { glyph: library('glyph'), shapes: library('shapes'), nested: library('nested'), spin: library('spin') };
 const ruleKey = r => r.map(s => s.join(' ')).join(' | ');
 const asRule = r => r.map(s => s.slice());
 const fitsAll = (lib, pairs) => lib.filter(r => pairs.every(([a, b]) => sameFig(applyRule(r, a), b)));
-const look = f => JSON.stringify([f.pts ? ptsKey(f.pts) : 'plain', f.colour, f.count, f.size, f.fill]);
+const look = canon;
 const pickDesign = (p, key, tier) => p.evalIn('IQ_AN_DESIGNS').find(d => d.key === key).make(tier);
 
 function checkQuestion(p, q){
@@ -70,7 +88,7 @@ function checkQuestion(p, q){
   if (q.ctx.colours.length !== 4 || new Set(q.ctx.colours).size !== 4) e.push('colour palette');
   const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
   if (all.some(st => st.count < 1 || st.count > 4)) e.push('a group has more than 4 shapes');
-  if (q.ctx.mode === 'glyph' && all.some(st => st.count > 2)) e.push('a glyph group has more than 2 copies');
+  if (q.ctx.mode !== 'shapes' && all.some(st => st.count > 2)) e.push('a ' + q.ctx.mode + ' group has more than 2 copies');
   if (q.design === 'classic' || q.design === 'two-examples'){
     const exs = [[q.A, q.A2]].concat(q.design === 'two-examples' ? [[q.C, q.C2]] : []);
     exs.forEach(([a, b]) => { if (!sameFig(applyRule(rule, F(a)), F(b))) e.push('an example does not follow the rule (checked on the points)'); });
@@ -105,17 +123,17 @@ function fakeRender(p, q){
 }
 
 function run(){
-  test('ANA-1 library: 79 rules with a glyph and 9 with a plain shape, counted here independently; each has a turn, a reflection or a fill; no arithmetic or modulo steps', () => {
-    const p = H.loadProject(), bad = [];
-    const prod = p.evalIn("[iqAnLibrary('glyph').length, iqAnLibrary('shapes').length]"), mine = [LIB.glyph.length, LIB.shapes.length];
-    if (mine.join() !== '79,9') bad.push('test-side counts ' + mine.join());
+  test('ANA-1 library: 79 glyph rules, 9 plain-shape rules, 14 inner/outer rules and 18 rotating-colour rules, counted here independently; each has the visual change of its kind; no arithmetic or modulo steps', () => {
+    const p = H.loadProject(), bad = [], modes = ['glyph', 'shapes', 'nested', 'spin'];
+    const prod = p.evalIn("['glyph', 'shapes', 'nested', 'spin'].map(m => iqAnLibrary(m).length)"), mine = modes.map(m => LIB[m].length);
+    if (mine.join() !== '79,9,14,18') bad.push('test-side counts ' + mine.join());
     if (prod.join() !== mine.join()) bad.push('production counts ' + prod.join());
-    ['glyph', 'shapes'].forEach(m => { if (p.evalIn("iqAnLibrary('" + m + "').map(iqAnKey).sort().join('#')") !== LIB[m].map(ruleKey).sort().join('#')) bad.push(m + ' libraries differ'); });
+    modes.forEach(m => { if (p.evalIn("iqAnLibrary('" + m + "').map(iqAnKey).sort().join('#')") !== LIB[m].map(ruleKey).sort().join('#')) bad.push(m + ' libraries differ'); });
     const ops = JSON.stringify(p.evalIn('IQ_AN_OPS'));
     if (/x2|half|\+2|skip2|mod3|byCount|\+45|\+135/.test(ops)) bad.push('a removed step still exists: ' + ops);
-    if (LIB.glyph.concat(LIB.shapes).some(r => r.length < 2 || r.length > 3 || new Set(r.map(s => s[0])).size !== r.length)) bad.push('rules are not 2-3 steps on different attributes');
+    modes.forEach(m => { if (LIB[m].some(r => r.length < 2 || r.length > 3 || new Set(r.map(s => s[0])).size !== r.length || !r.some(s => MUST[m].includes(s[0])))) bad.push(m + ': rules are not 2-3 steps on different attributes with the visual change of their kind'); });
     if (p.evalIn('Object.keys(IQ_GLYPHS).length') < 20) bad.push('too few glyphs');
-    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : '79 + 9 rules, identical in production and test, ' + p.evalIn('Object.keys(IQ_GLYPHS).length') + ' glyphs' };
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : mine.join(' + ') + ' rules, identical in production and test, ' + p.evalIn('Object.keys(IQ_GLYPHS).length') + ' glyphs' };
   });
   ['classic', 'two-examples', 'pair-odd'].forEach((key, k) => {
     test('ANA-' + (2 + k) + ' ' + key + ': ' + N + ' questions checked against the independent library, turns and reflections verified on the points', () => {
@@ -192,6 +210,15 @@ function run(){
       const o = outside(p.ctx.renderShapeSVG({ type: 'glyph', glyph, color: '#4C6FFF', scale, count, rotation, mirror, hollow: mirror })); checked++;
       if (o > 0.05) bad.push('glyph ' + glyph + ' scale ' + scale + ' x' + count + ': ' + o.toFixed(1) + ' units outside');
     }
+    // shapes in shapes and coloured regions: also inside the drawing area at every scale and count, with a filled and an outline inner shape
+    for (const outer of ['square', 'circle', 'triangle', 'pentagon']) for (const inner of ['square', 'circle', 'triangle']) for (const scale of [1, 1.3, 1.5]) for (const count of [1, 2]) for (const hollow of [false, true]){
+      const o = outside(p.ctx.renderShapeSVG({ type: 'nested', outer, inner, color: '#FF6B6B', color2: '#4C6FFF', scale, count, hollow })); checked++;
+      if (o > 0.05) bad.push('nested ' + outer + '/' + inner + ' scale ' + scale + ' x' + count + ': ' + o.toFixed(1) + ' units outside');
+    }
+    for (const layout of ['sectors', 'rings']) for (const scale of [1, 1.3, 1.5]) for (const count of [1, 2]){
+      const o = outside(p.ctx.renderShapeSVG({ type: 'spin', layout, colors: ['#FF6B6B', '#4C6FFF', '#FFD93D'], scale, count })); checked++;
+      if (o > 0.05) bad.push('spin ' + layout + ' scale ' + scale + ' x' + count + ': ' + o.toFixed(1) + ' units outside');
+    }
     for (const type of ['square', 'triangle', 'hexagon']) for (const count of [2, 3, 4]){
       const first = sc => { const m = /<g transform="translate\(([-\d.]+) 0\)"><polygon points="([^"]*)"/.exec(p.ctx.renderShapeSVG({ type, color: '#FF6B6B', scale: sc, count })); const xs = m[2].trim().split(' ').map(q => +q.split(',')[0]); return Math.max(...xs) - Math.min(...xs); };
       const rr = first(1.3) / first(1);
@@ -229,13 +256,96 @@ function run(){
     for (const glyph of p.evalIn('Object.keys(IQ_GLYPHS)')){ const keys = new Set([0, 1, 2, 3, 4, 5, 6, 7].map(o => ptsKey(glyphPts(p, glyph, o)))); if (keys.size !== 8) bad.push(glyph + ' has a symmetry: ' + keys.size + ' different pictures'); }
     return { pass: !bad.length, info: checked + ' drawings compared' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', 8 different pictures for every glyph') };
   });
-  test('ANA-10 emphasis: at least 70% of the rules turn or reflect the figure and every rule has a turn, a reflection or a fill; a number step is a secondary step in at most 30% of the rules', () => {
-    const p = H.loadProject(); p.seed(90); const bad = []; let n = 0, turn = 0, must = 0, count = 0;
-    for (let i = 0; i < 1500; i++){ const q = p.ctx.iqAnalogyPick(1 + (i % 7)); n++; if (q.rule.some(s => s[0] === 'orient')) turn++; if (q.rule.some(s => s[0] === 'orient' || s[0] === 'fill')) must++; if (q.rule.some(s => s[0] === 'count')) count++; }
-    if (must !== n) bad.push((n - must) + ' rules without a turn, reflection or fill');
-    if (turn / n < 0.7) bad.push('turn/reflection rules are only ' + (100 * turn / n).toFixed(0) + '%');
-    if (count / n > 0.30) bad.push('number steps are ' + (100 * count / n).toFixed(0) + '%');
-    return { pass: !bad.length, info: n + ' questions | turn or reflection ' + (100 * turn / n).toFixed(0) + '% | number step ' + (100 * count / n).toFixed(0) + '%' + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+  test('ANA-10 emphasis: turns/reflections, inner/outer swaps and rotating colours each carry about a quarter to a third of the rules; every rule has the visual change of its kind; a number step is secondary', () => {
+    const p = H.loadProject(); p.seed(90); const bad = []; let n = 0, must = 0, count = 0; const has = { orient: 0, nest: 0, cycle: 0 }, modes = {};
+    for (let i = 0; i < 2000; i++){
+      const q = p.ctx.iqAnalogyPick(1 + (i % 7)); n++; modes[q.ctx.mode] = (modes[q.ctx.mode] || 0) + 1;
+      if (q.rule.some(s => MUST[q.ctx.mode].includes(s[0]))) must++;
+      ['orient', 'nest', 'cycle'].forEach(a => { if (q.rule.some(s => s[0] === a)) has[a]++; });
+      if (q.rule.some(s => s[0] === 'count')) count++;
+    }
+    const pct = v => 100 * v / n;
+    if (must !== n) bad.push((n - must) + ' rules without the visual change of their kind');
+    ['orient', 'nest', 'cycle'].forEach(a => { if (pct(has[a]) < 18 || pct(has[a]) > 45) bad.push(a + ' rules are ' + pct(has[a]).toFixed(0) + '%'); });
+    if (Math.abs(pct(has.nest) - pct(has.cycle)) > 8) bad.push('inner/outer and rotating-colour rules are not balanced');
+    if (pct(has.orient) < pct(has.nest) - 3 || pct(has.orient) < pct(has.cycle) - 3) bad.push('the new rules outweigh turns and reflections');
+    if (pct(count) > 30) bad.push('number steps are ' + pct(count).toFixed(0) + '%');
+    return { pass: !bad.length, info: n + ' questions | turn or reflection ' + pct(has.orient).toFixed(0) + '% | inner/outer ' + pct(has.nest).toFixed(0) + '% | rotating colours ' + pct(has.cycle).toFixed(0) + '% | number step ' + pct(count).toFixed(0) + '% | figures ' + JSON.stringify(modes) + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+  });
+  test('ANA-11 inner/outer drawing: the real renderer draws the outer and inner shape the state says, the inner shape lies inside the outer one (strokes included), a half-finished swap and the real swap are different pictures', () => {
+    const p = H.loadProject(), bad = []; let checked = 0;
+    const SIDES = { triangle: 3, square: 4, pentagon: 5 };
+    const parse = svg => [...svg.matchAll(/<polygon points="([^"]*)" fill="([^"]*)"(?: fill-opacity="[^"]*")? stroke="([^"]*)" stroke-width="([\d.]+)"|<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([\d.]+)" fill="([^"]*)"(?: fill-opacity="[^"]*")? stroke="([^"]*)" stroke-width="([\d.]+)"/g)].map(m => m[1] !== undefined
+      ? { kind: 'polygon', pts: m[1].trim().split(' ').map(q => q.split(',').map(Number)), fill: m[2], stroke: m[3], sw: +m[4] } : { kind: 'circle', r: +m[7], fill: m[8], stroke: m[9], sw: +m[10] });
+    const reach = (e, c) => e.kind === 'circle' ? e.r : Math.max(...e.pts.map(q => Math.hypot(q[0] - c, q[1] - c)));                       // farthest point from the centre
+    const inradius = (e, c) => e.kind === 'circle' ? e.r : Math.min(...e.pts.map((a, i) => { const b = e.pts[(i + 1) % e.pts.length], dx = b[0] - a[0], dy = b[1] - a[1]; return Math.abs(dx * (a[1] - c) - dy * (a[0] - c)) / Math.hypot(dx, dy); }));
+    const types = ['square', 'circle', 'triangle', 'pentagon'];
+    for (const outer of types) for (const inner of types) for (const scale of [1, 1.3]) for (const hollow of [false, true]){
+      const svg = p.ctx.renderShapeSVG({ type: 'nested', outer, inner, color: '#FF6B6B', color2: '#4C6FFF', scale, count: 1, hollow }), els = parse(svg); checked++;
+      if (els.length !== 2){ bad.push(outer + '/' + inner + ': ' + els.length + ' elements'); continue; }
+      const [o, i] = els, kindOf = e => e.kind === 'circle' ? 'circle' : Object.keys(SIDES).find(k => SIDES[k] === e.pts.length) || 'square';
+      if (kindOf(o) !== outer || kindOf(i) !== inner) bad.push(outer + '/' + inner + ' drawn as ' + kindOf(o) + '/' + kindOf(i));
+      if (o.stroke !== '#FF6B6B' || i.stroke !== '#4C6FFF') bad.push(outer + '/' + inner + ': colours');
+      if (hollow !== (i.fill === '#ffffff')) bad.push(outer + '/' + inner + ': hollow flag');
+      const gap = inradius(o, 40) - o.sw / 2 - (reach(i, 40) + i.sw / 2);
+      if (gap < 0.5) bad.push(outer + '/' + inner + ' scale ' + scale + ': the inner shape touches the outline (gap ' + gap.toFixed(1) + ')');
+      if (reach(i, 40) < 0.2 * reach(o, 40)) bad.push(outer + '/' + inner + ': inner shape too small');
+    }
+    // the states: swap = outer and inner change places; the half-finished ones (nest 2 and 3) look different from both real states
+    const ctx = { mode: 'nested', types: ['square', 'circle'], colours: ['#FF6B6B', '#4ECDC4', '#FFD93D', '#9B5DE5'] };
+    const sp = n => p.ctx.iqAnSpec(ctx, { orient: 0, nest: n, cycle: 0, colour: 0, size: 0, fill: 0, count: 1, cap: 2 });
+    if (new Set([0, 1, 2, 3].map(n => JSON.stringify(sp(n)))).size !== 4) bad.push('the four nest states do not look different');
+    if (!(sp(0).outer === 'square' && sp(0).inner === 'circle' && sp(1).outer === 'circle' && sp(1).inner === 'square')) bad.push('the swap does not exchange the shapes');
+    if (!(sp(0).color === '#FF6B6B' && sp(0).color2 === '#4ECDC4' && sp(1).color === '#4ECDC4' && sp(1).color2 === '#FF6B6B')) bad.push('a shape does not keep its colour when the shapes change places');
+    return { pass: !bad.length, info: checked + ' drawings checked' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ', the inner shape always lies inside') };
+  });
+  test('ANA-12 rotating-colour drawing: sectors and rings are drawn with the colours of the state (every one of the six colourings), in the order the state says, and +1 / -1 move the colours the way the description says', () => {
+    const p = H.loadProject(), bad = []; let checked = 0;
+    const palette = ['#FF6B6B', '#4C6FFF', '#FFD93D'];
+    for (const layout of ['sectors', 'rings']) for (const perm of PERMS_T) for (const scale of [1, 1.3]){
+      const colors = perm.map(i => palette[i]), svg = p.ctx.renderShapeSVG({ type: 'spin', layout, colors, scale, count: 1 }); checked++;
+      if (layout === 'rings'){
+        const cs = [...svg.matchAll(/<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([\d.]+)" fill="([^"]*)"/g)].filter(m => m[4] !== 'none').map(m => ({ r: +m[3], fill: m[4] }));
+        if (cs.length !== 3 || !(cs[0].r > cs[1].r && cs[1].r > cs[2].r) || cs.some((c, i) => c.fill !== colors[i])) bad.push('rings ' + perm.join(''));
+      } else {
+        const ps = [...svg.matchAll(/<path d="M([-\d.]+) ([-\d.]+) L([-\d.]+) ([-\d.]+) A[\d.]+ [\d.]+ 0 0 1 ([-\d.]+) ([-\d.]+) Z" fill="([^"]*)"/g)];
+        if (ps.length !== 3){ bad.push('sectors ' + perm.join('') + ': ' + ps.length + ' sectors'); continue; }
+        ps.forEach((m, i) => {
+          const ang = (x, y) => Math.round(((Math.atan2(+y - 40, +x - 40) * 180 / Math.PI) + 360) % 360), want0 = (270 + i * 120) % 360, want1 = (270 + (i + 1) * 120) % 360;
+          if (m[7] !== colors[i] || ang(m[3], m[4]) !== want0 || ang(m[5], m[6]) !== want1) bad.push('sectors ' + perm.join('') + ' region ' + i);
+        });
+      }
+    }
+    // +1: every colour moves one region on (region 0 -> region 1 -> region 2 -> region 0); -1 the other way; the colour step puts every colour next to its pair partner
+    const names = ['#FF6B6B', '#4C6FFF', '#FFD93D', '#06D6A0'], ctx = { mode: 'spin', layout: 'sectors', palette: [0, 1, 2], colours: names };
+    for (let c = 0; c < 6; c++) for (let col = 0; col < 2; col++){
+      const st = { orient: 0, nest: 0, cycle: c, colour: col, size: 0, fill: 0, count: 1, cap: 2 }, r = PERMS_T[c].map(i => names[i ^ col]);
+      const plus = p.ctx.iqAnSpec(ctx, p.ctx.iqAnApply([['cycle', '+1']], st)).colors, minus = p.ctx.iqAnSpec(ctx, p.ctx.iqAnApply([['cycle', '-1']], st)).colors;
+      const partner = p.ctx.iqAnSpec(ctx, p.ctx.iqAnApply([['colour', 'pair']], st)).colors;
+      if (plus.join() !== [r[2], r[0], r[1]].join()) bad.push('+1 from colouring ' + c);
+      if (minus.join() !== [r[1], r[2], r[0]].join()) bad.push('-1 from colouring ' + c);
+      if (partner.join() !== r.map(x => names[names.indexOf(x) ^ 1]).join()) bad.push('colour step from colouring ' + c);
+    }
+    return { pass: !bad.length, info: checked + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ', all six colourings, both layouts, both directions') };
+  });
+  test('ANA-13 logical wrong answers and visual load: in a swap question a half-finished swap is always among the wrong answers, in a rotating-colour question a figure where one colour stayed put is; no rotating-colour or inner/outer group has more than 2 figures', () => {
+    const p = H.loadProject(); p.seed(93); const bad = []; let swapQ = 0, swapHit = 0, spinQ = 0, spinHit = 0, loadMax = 0;
+    for (let i = 0; i < 4 * N; i++){
+      const q = p.ctx.iqAnalogyPick(1 + (i % 7)), mode = q.ctx.mode;
+      const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
+      if (mode === 'nested' || mode === 'spin') all.forEach(st => { loadMax = Math.max(loadMax, st.count); });
+      if (q.design === 'pair-odd') continue;
+      if (mode === 'nested' && q.rule.some(s => s[0] === 'nest')){ swapQ++; if (q.wrong.some(w => w.nest >= 2)) swapHit++; }
+      if (mode === 'spin'){
+        spinQ++;
+        // a colouring where exactly one region keeps the colour it had in B (the other two traded places): "one colour did not rotate"
+        if (q.wrong.some(w => PERMS_T[w.cycle].filter((c, r) => c === PERMS_T[q.B.cycle][r]).length === 1)) spinHit++;
+      }
+    }
+    if (loadMax > 2) bad.push('a rotating-colour or inner/outer group has ' + loadMax + ' figures');
+    if (!swapQ || swapHit !== swapQ) bad.push('half-finished swap among the wrong answers in ' + swapHit + ' of ' + swapQ + ' swap questions');
+    if (!spinQ || spinHit !== spinQ) bad.push('a colour that did not move among the wrong answers in ' + spinHit + ' of ' + spinQ + ' rotating-colour questions');
+    return { pass: !bad.length, info: 'swap questions ' + swapHit + '/' + swapQ + ' | rotating-colour questions ' + spinHit + '/' + spinQ + ' | largest group ' + loadMax + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
   });
   return out;
 }

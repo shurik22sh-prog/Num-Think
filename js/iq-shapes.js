@@ -125,6 +125,25 @@ function iqRichShapeUnit(type, color, rotation, scale, size, extra){
   const sides = IQ_TYPE_SIDES[type];
   const outerR = size * 0.40 * scale, innerR = size * 0.23 * scale;
   const innerFill = extra.hollow ? '#ffffff' : color, innerStroke = extra.hollow ? 3.4 : 2.5;
+  if (type === 'nested'){          // a shape inside a shape: extra = { outer, inner (shape types), color (outer), color2 (inner), hollow (the inner shape is an outline only) }
+    const solid = (kind, r, fill, fillOpacity, stroke, sw) => {
+      const n = IQ_TYPE_SIDES[kind], paint = ' fill="'+fill+'"'+(fillOpacity ? ' fill-opacity="'+fillOpacity+'"' : '')+' stroke="'+stroke+'" stroke-width="'+sw+'"';
+      return n ? '<polygon points="'+iqPolygonPoints(cx, cy, r, n, -90)+'"'+paint+' stroke-linejoin="round"/>' : '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'"'+paint+'/>';
+    };
+    const color2 = extra.color2 || color, r2 = size * 0.15 * scale;       // 0.15 of the size: inside the smallest outline (a triangle's inradius is 0.20)
+    return solid(extra.outer, outerR, color, 0.14, color, 3) + solid(extra.inner, r2, extra.hollow ? '#ffffff' : color2, 0, color2, extra.hollow ? 3.4 : 2.5);
+  }
+  if (type === 'spin'){            // three coloured regions, sectors of a circle or rings: extra = { layout: 'sectors' | 'rings', colors: [region 0, 1, 2] }
+    const cols = extra.colors, frame = '<circle cx="'+cx+'" cy="'+cy+'" r="'+outerR.toFixed(1)+'" fill="none" stroke="#3A3352" stroke-opacity="0.55" stroke-width="1.6"/>';
+    if (extra.layout === 'rings'){
+      return [1, 0.67, 0.34].map((f, i) => '<circle cx="'+cx+'" cy="'+cy+'" r="'+(outerR * f).toFixed(1)+'" fill="'+cols[i]+'" stroke="#ffffff" stroke-width="1.6"/>').join('') + frame;
+    }
+    return [0, 1, 2].map(i => {
+      const a0 = (-90 + i * 120) * Math.PI / 180, a1 = (-90 + (i + 1) * 120) * Math.PI / 180;
+      return '<path d="M'+cx+' '+cy+' L'+(cx + outerR * Math.cos(a0)).toFixed(1)+' '+(cy + outerR * Math.sin(a0)).toFixed(1)+' A'+outerR.toFixed(1)+' '+outerR.toFixed(1)+' 0 0 1 '+
+        (cx + outerR * Math.cos(a1)).toFixed(1)+' '+(cy + outerR * Math.sin(a1)).toFixed(1)+' Z" fill="'+cols[i]+'" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>';
+    }).join('') + frame;
+  }
   if (type === 'glyph'){
     return '<polygon points="'+iqGlyphPoints(extra.glyph, rotation, extra.mirror, cx, cy, outerR)+'" fill="'+innerFill+'" stroke="'+color+'" stroke-width="'+(extra.hollow ? 3.4 : 2.5)+'" stroke-linejoin="round"/>';
   }
@@ -198,7 +217,9 @@ function iqSpecsEqual(a, b){
   return a.type === b.type && a.color === b.color &&
     iqNormalizedRotation(a.type, a.rotation||0, a.marker) === iqNormalizedRotation(b.type, b.rotation||0, b.marker) &&
     (a.scale||1) === (b.scale||1) && (a.count||1) === (b.count||1) &&
-    (a.glyph||'') === (b.glyph||'') && !!a.mirror === !!b.mirror && !!a.hollow === !!b.hollow;
+    (a.glyph||'') === (b.glyph||'') && !!a.mirror === !!b.mirror && !!a.hollow === !!b.hollow &&
+    (a.outer||'') === (b.outer||'') && (a.inner||'') === (b.inner||'') && (a.color2||'') === (b.color2||'') &&
+    (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join();
 }
 
 /* ============ Composite multi-part figures (position-rearrangement questions) ============ */
