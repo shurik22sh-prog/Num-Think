@@ -188,6 +188,7 @@
    The tiles size themselves from the height of the window, the examples sit side by side (they wrap under each other only when the window is narrow),
    and the spacing around them is tighter than in the other games. */
 #iq-analogy{ gap:6px; }
+#app:has(#iq-analogy:not(.hidden)){ padding-bottom:12px; }          /* the page's usual 60px of room at the bottom would make the one-screen question scroll by a few pixels */
 #iq-analogy .iq-reset-progress-btn{ margin-top:0; padding:2px; }
 #iq-analogy .iq-options-label{ display:none; }                    /* the line above the examples already says what to do */
 #iq-analogy .iq-explanation{ max-width:min(920px, 100%); font-size:14px; }

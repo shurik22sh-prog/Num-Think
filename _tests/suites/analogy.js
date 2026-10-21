@@ -33,16 +33,16 @@ function glyphPts(p, id, orient){                                   // the outli
   for (let i = 0; i < (orient & 3); i++) pts = pts.map(R4);
   return pts;
 }
-const ORDER = ['orient', 'nest', 'cycle', 'op', 'cut', 'colour', 'size', 'fill', 'count'];
-const OPS = { orient: ['+90', '-90', '180', 'flipH', 'flipV'], nest: ['swap'], cycle: ['+1', '-1'], op: ['and', 'xor', 'aNotB', 'bNotA', 'union'], cut: ['v', 'd', 'q', 't', 'join'], colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1'] };
-const MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'], logic: ['op', 'colour', 'size', 'fill'], parts: ['cut', 'colour', 'size', 'fill'] };
-const MUST = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'], logic: ['op'], parts: ['cut'], merge: ['merge'] };
-const CAPS = { glyph: 2, nested: 2, spin: 2, shapes: 4, logic: 1, parts: 1 };
+const ORDER = ['orient', 'nest', 'cycle', 'op', 'cut', 'holes', 'link', 'colour', 'size', 'fill', 'count'];
+const OPS = { orient: ['+90', '-90', '180', 'flipH', 'flipV'], nest: ['swap'], cycle: ['+1', '-1'], op: ['and', 'xor', 'aNotB', 'bNotA', 'union'], cut: ['v', 'd', 'q', 't', 'join'], holes: ['+1', '-1'], link: ['join', 'open'], colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1'] };
+const MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'], logic: ['op', 'colour', 'size', 'fill'], parts: ['cut', 'colour', 'size', 'fill'], holes: ['holes', 'colour', 'size', 'fill'], chain: ['link', 'count', 'colour', 'size'] };
+const MUST = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'], logic: ['op'], parts: ['cut'], holes: ['holes'], chain: ['link'], merge: ['merge'] };
+const CAPS = { glyph: 2, nested: 2, spin: 2, shapes: 4, logic: 1, parts: 1, holes: 1, chain: 3 };
 const OP_NAMES = ['and', 'xor', 'aNotB', 'bNotA', 'union'], CUT_NAMES = ['whole', 'v', 'd', 'q', 't', 'v!', 'd!', 'q!', 't!'];          // the states 5-8 of a cut are only ever wrong answers: cut, pieces not moved apart
 const PERMS_T = [[0, 1, 2], [2, 0, 1], [1, 2, 0], [0, 2, 1], [2, 1, 0], [1, 0, 2]];          // region -> palette colour, six ways
 // a test-side figure: {pts (glyph outline or null), colour, size, fill, count, cap, nest {outer, inner, cols} (shape in shape), regions (the colours of the three regions)}
 function figure(p, ctx, st){
-  const f = { pts: null, colour: st.colour, size: st.size, fill: st.fill, count: st.count, cap: CAPS[ctx.mode], nest: null, regions: null, cfg: st.cfg, op: st.op === 0 ? 'none' : OP_NAMES[st.op - 1], cut: CUT_NAMES[st.cut] };
+  const f = { pts: null, colour: st.colour, size: st.size, fill: st.fill, count: st.count, cap: CAPS[ctx.mode], nest: null, regions: null, cfg: st.cfg, holes: st.holes, link: st.link, floor: ctx.mode === 'chain' ? 2 : 1, op: st.op === 0 ? 'none' : OP_NAMES[st.op - 1], cut: CUT_NAMES[st.cut] };
   if (ctx.mode === 'glyph') f.pts = glyphPts(p, ctx.glyph, st.orient);
   if (ctx.mode === 'nested'){
     const sh = [[0, 1], [1, 0], [1, 1], [0, 0]][st.nest];                                          // [outer, inner] shape; 2 and 3 are the half-finished swaps
@@ -54,6 +54,8 @@ function figure(p, ctx, st){
 function stepFigure(attr, op, f){
   const o = Object.assign({}, f);
   if (attr === 'orient') o.pts = f.pts.map(GEOM[op]);
+  else if (attr === 'holes'){ const h = f.holes + (op === '+1' ? 1 : -1); if (h < 0 || h > 2) return null; o.holes = h; }                    // at most two holes
+  else if (attr === 'link'){ if (op === 'join'){ if (f.link !== 0) return null; o.link = 1; } else { if (f.link !== 1) return null; o.link = 0; } }   // rings apart <-> woven into a chain
   else if (attr === 'op'){ if (f.op !== 'none') return null; o.op = op; }                                                    // only a figure that has not been processed yet
   else if (attr === 'cut'){ if (op === 'join'){ if (!['v', 'd', 'q', 't'].includes(f.cut)) return null; o.cut = 'whole'; } else { if (f.cut !== 'whole') return null; o.cut = op; } }
   else if (attr === 'nest') o.nest = { outer: f.nest.inner, inner: f.nest.outer, cols: f.nest.cols };           // the two shapes change places, each keeps its colour
@@ -62,11 +64,11 @@ function stepFigure(attr, op, f){
   else if (attr === 'colour'){ if (f.nest) o.nest = { outer: f.nest.outer, inner: f.nest.inner, cols: [f.nest.cols[1], f.nest.cols[0]] }; else o.colour = f.colour % 2 ? f.colour - 1 : f.colour + 1; }
   else if (attr === 'size') o.size = 1 - f.size;
   else if (attr === 'fill') o.fill = 1 - f.fill;
-  else { o.count = f.count + (op === '+1' ? 1 : -1); if (o.count < 1 || o.count > f.cap) return null; }
+  else { o.count = f.count + (op === '+1' ? 1 : -1); if (o.count < (f.floor || 1) || o.count > f.cap) return null; }
   return o;
 }
 const applyRule = (rule, f) => { let cur = f; for (const [a, op] of rule){ cur = cur && stepFigure(a, op, cur); } return cur; };
-const canon = f => JSON.stringify([f.pts ? ptsKey(f.pts) : null, f.colour, f.size, f.fill, f.count, f.nest, f.regions, f.cfg, f.op, f.cut]);
+const canon = f => JSON.stringify([f.pts ? ptsKey(f.pts) : null, f.colour, f.size, f.fill, f.count, f.nest, f.regions, f.cfg, f.op, f.cut, f.holes, f.link]);
 const sameFig = (a, b) => !!(a && b && canon(a) === canon(b));
 function library(mode){
   const attrs = ORDER.filter(a => MODE_ATTRS[mode].includes(a)), rules = [];
@@ -78,7 +80,7 @@ function library(mode){
   sub(0, []);
   return rules;
 }
-const LIB = { glyph: library('glyph'), shapes: library('shapes'), nested: library('nested'), spin: library('spin'), logic: library('logic'), parts: library('parts') };
+const LIB = { glyph: library('glyph'), shapes: library('shapes'), nested: library('nested'), spin: library('spin'), logic: library('logic'), parts: library('parts'), holes: library('holes'), chain: library('chain') };
 const ruleKey = r => r.map(s => s.join(' ')).join(' | ');
 const asRule = r => r.map(s => s.slice());
 const fitsAll = (lib, pairs) => lib.filter(r => pairs.every(([a, b]) => sameFig(applyRule(r, a), b)));
@@ -94,7 +96,7 @@ function partialLibrary(mode){
   sub(0, []);
   return rules;
 }
-const PART = { glyph: partialLibrary('glyph'), shapes: partialLibrary('shapes'), nested: partialLibrary('nested'), spin: partialLibrary('spin'), logic: partialLibrary('logic'), parts: partialLibrary('parts') };
+const PART = { glyph: partialLibrary('glyph'), shapes: partialLibrary('shapes'), nested: partialLibrary('nested'), spin: partialLibrary('spin'), logic: partialLibrary('logic'), parts: partialLibrary('parts'), holes: partialLibrary('holes'), chain: partialLibrary('chain') };
 // the merge model, written here from the plain description: what each of the three kinds of square becomes
 // (a square only in the dark layer / only in the light layer / in both), 0 nothing, 1 dark, 2 light, 3 a third colour
 const MERGE_LIB = [];
@@ -159,7 +161,8 @@ function checkQuestion(p, q){
   if (q.ctx.colours.length !== 4 || new Set(q.ctx.colours).size !== 4) e.push('colour palette');
   const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
   if (all.some(st => st.count < 1 || st.count > 4)) e.push('a group has more than 4 shapes');
-  if (q.ctx.mode !== 'shapes' && all.some(st => st.count > 2)) e.push('a ' + q.ctx.mode + ' group has more than 2 copies');
+  if (q.ctx.mode !== 'shapes' && q.ctx.mode !== 'chain' && all.some(st => st.count > 2)) e.push('a ' + q.ctx.mode + ' group has more than 2 copies');
+  if (q.ctx.mode === 'chain' && all.some(st => st.count < 2 || st.count > 3)) e.push('a chain has fewer than 2 or more than 3 rings');
   if (q.design === 'split-rule'){
     e.push(...checkSplit(p, q, lib, F));
   } else if (q.design === 'classic'){
@@ -195,10 +198,10 @@ function fakeRender(p, q){
 }
 
 function run(){
-  test('ANA-1 library: 79 glyph, 9 plain-shape, 14 inner/outer, 18 rotating-colour, 30 logic and 30 parts rules, counted here independently; each has the visual change of its kind; no arithmetic or modulo steps', () => {
-    const p = H.loadProject(), bad = [], modes = ['glyph', 'shapes', 'nested', 'spin', 'logic', 'parts'];
-    const prod = p.evalIn("['glyph', 'shapes', 'nested', 'spin', 'logic', 'parts'].map(m => iqAnLibrary(m).length)"), mine = modes.map(m => LIB[m].length);
-    if (mine.join() !== '79,9,14,18,30,30') bad.push('test-side counts ' + mine.join());
+  test('ANA-1 library: 79 glyph, 9 plain-shape, 14 inner/outer, 18 rotating-colour, 30 logic, 30 parts, 12 hole and 18 chain rules, counted here independently; each has the visual change of its kind; no arithmetic or modulo steps', () => {
+    const p = H.loadProject(), bad = [], modes = ['glyph', 'shapes', 'nested', 'spin', 'logic', 'parts', 'holes', 'chain'];
+    const prod = p.evalIn("['glyph', 'shapes', 'nested', 'spin', 'logic', 'parts', 'holes', 'chain'].map(m => iqAnLibrary(m).length)"), mine = modes.map(m => LIB[m].length);
+    if (mine.join() !== '79,9,14,18,30,30,12,18') bad.push('test-side counts ' + mine.join());
     if (prod.join() !== mine.join()) bad.push('production counts ' + prod.join());
     modes.forEach(m => { if (p.evalIn("iqAnLibrary('" + m + "').map(iqAnKey).sort().join('#')") !== LIB[m].map(ruleKey).sort().join('#')) bad.push(m + ' libraries differ'); });
     const ops = JSON.stringify(p.evalIn('IQ_AN_OPS'));
@@ -292,6 +295,10 @@ function run(){
       const o = outside(p.ctx.renderShapeSVG({ type: 'parts', shape, cut, color: '#FF6B6B', color2: '#4C6FFF', scale, count: 1, hollow })); checked++;
       if (o > 0.05) bad.push('parts ' + shape + ' cut ' + cut + ' scale ' + scale + ': ' + o.toFixed(1) + ' units outside');
     }
+    for (const shape of ['circle', 'square', 'triangle', 'pentagon', 'hexagon']) for (let holes = 0; holes <= 4; holes++) for (const scale of [1, 1.3]) for (const hollow of [false, true]){
+      const o = outside(p.ctx.renderShapeSVG({ type: 'holes', shape, holes, color: '#FF6B6B', scale, count: 1, hollow })); checked++;
+      if (o > 0.05) bad.push('holes ' + shape + ' ' + holes + ' scale ' + scale + ': ' + o.toFixed(1) + ' units outside');
+    }
     // shapes in shapes and coloured regions: also inside the drawing area at every scale and count, with a filled and an outline inner shape
     for (const outer of ['square', 'circle', 'triangle', 'pentagon']) for (const inner of ['square', 'circle', 'triangle']) for (const scale of [1, 1.3, 1.5]) for (const count of [1, 2]) for (const hollow of [false, true]){
       const o = outside(p.ctx.renderShapeSVG({ type: 'nested', outer, inner, color: '#FF6B6B', color2: '#4C6FFF', scale, count, hollow })); checked++;
@@ -338,7 +345,7 @@ function run(){
     for (const glyph of p.evalIn('Object.keys(IQ_GLYPHS)')){ const keys = new Set([0, 1, 2, 3, 4, 5, 6, 7].map(o => ptsKey(glyphPts(p, glyph, o)))); if (keys.size !== 8) bad.push(glyph + ' has a symmetry: ' + keys.size + ' different pictures'); }
     return { pass: !bad.length, info: checked + ' drawings compared' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', 8 different pictures for every glyph') };
   });
-  test('ANA-10 emphasis: turns/reflections, inner/outer swaps and rotating colours each carry about a seventh to a third of the rules; every rule has the visual change of its kind; a number step is secondary', () => {
+  test('ANA-10 emphasis: turns/reflections, inner/outer swaps and rotating colours each carry about a tenth to a third of the rules; every rule has the visual change of its kind; a number step is secondary', () => {
     const p = H.loadProject(); p.seed(90); const bad = []; let n = 0, must = 0, count = 0; const has = { orient: 0, nest: 0, cycle: 0 }, modes = {};
     for (let i = 0; i < 2000; i++){
       const q = p.ctx.iqAnalogyPick(1 + (i % 7)); n++; modes[q.ctx.mode] = (modes[q.ctx.mode] || 0) + 1;
@@ -348,7 +355,7 @@ function run(){
     }
     const pct = v => 100 * v / n;
     if (must !== n) bad.push((n - must) + ' rules without the visual change of their kind');
-    ['orient', 'nest', 'cycle'].forEach(a => { if (pct(has[a]) < 14 || pct(has[a]) > 45) bad.push(a + ' rules are ' + pct(has[a]).toFixed(0) + '%'); });
+    ['orient', 'nest', 'cycle'].forEach(a => { if (pct(has[a]) < 9 || pct(has[a]) > 45) bad.push(a + ' rules are ' + pct(has[a]).toFixed(0) + '%'); });
     if (Math.abs(pct(has.nest) - pct(has.cycle)) > 8) bad.push('inner/outer and rotating-colour rules are not balanced');
     if (pct(has.orient) < pct(has.nest) - 3 || pct(has.orient) < pct(has.cycle) - 3) bad.push('the new rules outweigh turns and reflections');
     if (pct(count) > 30) bad.push('number steps are ' + pct(count).toFixed(0) + '%');
@@ -410,8 +417,8 @@ function run(){
     }
     return { pass: !bad.length, info: checked + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ', all six colourings, both layouts, both directions') };
   });
-  test('ANA-13 logical wrong answers and visual load: in a classic swap question a half-finished swap is always among the wrong answers, in a rotating-colour question a figure where one colour stayed put is, in a cutting question a cut whose pieces did not move apart is; no rotating-colour or inner/outer group has more than 2 figures', () => {
-    const p = H.loadProject(); p.seed(93); const bad = []; let swapQ = 0, swapHit = 0, spinQ = 0, spinHit = 0, cutQ = 0, cutHit = 0, loadMax = 0;
+  test('ANA-13 logical wrong answers and visual load: in a classic swap question a half-finished swap is always among the wrong answers, in a rotating-colour question a figure where one colour stayed put is, in a cutting question a cut whose pieces did not move apart is, in a hole question a hole in the wrong place is, in a weaving question rings that overlap without being woven are; no rotating-colour or inner/outer group has more than 2 figures', () => {
+    const p = H.loadProject(); p.seed(93); const bad = []; let swapQ = 0, swapHit = 0, spinQ = 0, spinHit = 0, cutQ = 0, cutHit = 0, holeQ = 0, holeHit = 0, linkQ = 0, linkHit = 0, loadMax = 0;
     for (let i = 0; i < 4 * N; i++){
       const q = p.ctx.iqAnalogyPick(1 + (i % 7)), mode = q.ctx.mode;
       const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
@@ -419,6 +426,8 @@ function run(){
       if (q.design !== 'classic') continue;                                       // (the split-rule design has its own wrong answers: the two "only one part" pictures, checked in ANA-3)
       if (mode === 'nested' && q.rule.some(s => s[0] === 'nest')){ swapQ++; if (q.wrong.some(w => w.nest >= 2)) swapHit++; }
       if (mode === 'parts' && q.rule.some(s => s[0] === 'cut' && s[1] !== 'join')){ cutQ++; if (q.wrong.some(w => w.cut >= 5)) cutHit++; }
+      if (mode === 'holes' && q.rule.some(s => s[0] === 'holes')){ const holes = q.B2.holes; if (holes === 1 || holes === 2){ holeQ++; if (q.wrong.some(w => w.holes >= 3)) holeHit++; } }
+      if (mode === 'chain' && q.rule.some(s => s[0] === 'link' && s[1] === 'join')){ linkQ++; if (q.wrong.some(w => w.link === 2)) linkHit++; }
       if (mode === 'spin'){
         spinQ++;
         // a colouring where exactly one region keeps the colour it had in B (the other two traded places): "one colour did not rotate"
@@ -428,8 +437,10 @@ function run(){
     if (loadMax > 2) bad.push('a rotating-colour or inner/outer group has ' + loadMax + ' figures');
     if (!swapQ || swapHit !== swapQ) bad.push('half-finished swap among the wrong answers in ' + swapHit + ' of ' + swapQ + ' swap questions');
     if (!cutQ || cutHit !== cutQ) bad.push('a cut whose pieces did not move apart among the wrong answers in ' + cutHit + ' of ' + cutQ + ' cutting questions');
+    if (!holeQ || holeHit !== holeQ) bad.push('a hole in the wrong place among the wrong answers in ' + holeHit + ' of ' + holeQ + ' hole questions');
+    if (!linkQ || linkHit !== linkQ) bad.push('rings that overlap but are not woven among the wrong answers in ' + linkHit + ' of ' + linkQ + ' weaving questions');
     if (!spinQ || spinHit !== spinQ) bad.push('a colour that did not move among the wrong answers in ' + spinHit + ' of ' + spinQ + ' rotating-colour questions');
-    return { pass: !bad.length, info: 'swap questions ' + swapHit + '/' + swapQ + ' | cutting questions ' + cutHit + '/' + cutQ + ' | rotating-colour questions ' + spinHit + '/' + spinQ + ' | largest group ' + loadMax + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+    return { pass: !bad.length, info: 'swap questions ' + swapHit + '/' + swapQ + ' | hole questions ' + holeHit + '/' + holeQ + ' | weaving questions ' + linkHit + '/' + linkQ + ' | cutting questions ' + cutHit + '/' + cutQ + ' | rotating-colour questions ' + spinHit + '/' + spinQ + ' | largest group ' + loadMax + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
   });
   test('ANA-15 merge drawing: 10 merge rules counted here independently; the 3 x 3 board is drawn square by square with the colours of the state, inside its drawing area, and the real renderer shows the two layers, the result and the four answers exactly as the question says', () => {
     const p = H.loadProject(); p.seed(95); const bad = [];
@@ -466,11 +477,11 @@ function run(){
     }
     return { pass: !bad.length, info: boards + ' boards drawn, 60 merge questions rendered' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', every square as the state says') };
   });
-  test('ANA-16 the new designs by level: split-rule, pair-odd and merge arrive only from level 4, each is a minor twist (merge and split-rule about a tenth of the questions each, logic and parts figures about an eighth each, at level 4 and up), and in split-rule every question has two examples that each show only one part', () => {
+  test('ANA-16 the new designs by level: split-rule, pair-odd and merge arrive only from level 4, each is a minor twist (merge and split-rule about a tenth of the questions each, logic, parts, hole and chain figures about a tenth each, at level 4 and up), and in split-rule every question has two examples that each show only one part', () => {
     const p = H.loadProject(); p.seed(96); const bad = []; const share = {}; const modeShare = {}; let n = 0, partialLooks = 0, splitQ = 0;
     for (let t = 1; t <= 7; t++) for (let i = 0; i < 300; i++){
       const q = p.ctx.iqAnalogyPick(t);
-      if (['logic', 'parts'].includes(q.ctx.mode) && t <= 3) bad.push('a ' + q.ctx.mode + ' figure at level ' + t);
+      if (['logic', 'parts', 'holes', 'chain'].includes(q.ctx.mode) && t <= 3) bad.push('a ' + q.ctx.mode + ' figure at level ' + t);
       if (t >= 4) modeShare[q.ctx.mode] = (modeShare[q.ctx.mode] || 0) + 1;
       if (t <= 3 && q.design !== 'classic') bad.push('level ' + t + ' has a ' + q.design + ' question');
       if (t >= 4){ n++; share[q.design] = (share[q.design] || 0) + 1; }
@@ -482,9 +493,9 @@ function run(){
     const pct = d => 100 * (share[d] || 0) / n;
     ['split-rule', 'merge'].forEach(d => { if (pct(d) < 7 || pct(d) > 18) bad.push(d + ' is ' + pct(d).toFixed(0) + '% of the questions from level 4'); });
     if (pct('classic') < 55) bad.push('classic is only ' + pct('classic').toFixed(0) + '%');
-    ['logic', 'parts'].forEach(m => { const v = 100 * (modeShare[m] || 0) / n; if (v < 8 || v > 18) bad.push(m + ' figures are ' + v.toFixed(0) + '% of the questions from level 4'); });
+    ['logic', 'parts', 'holes', 'chain'].forEach(m => { const v = 100 * (modeShare[m] || 0) / n; if (v < 7 || v > 16) bad.push(m + ' figures are ' + v.toFixed(0) + '% of the questions from level 4'); });
     if (partialLooks !== splitQ) bad.push('a split-rule example shows the whole rule (' + (splitQ - partialLooks) + ' of ' + splitQ + ')');
-    return { pass: !bad.length, info: n + ' questions from level 4 | ' + Object.keys(share).map(d => d + ' ' + pct(d).toFixed(0) + '%').join(', ') + ' | figures: logic ' + (100 * (modeShare.logic || 0) / n).toFixed(0) + '%, parts ' + (100 * (modeShare.parts || 0) / n).toFixed(0) + '%' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : '') };
+    return { pass: !bad.length, info: n + ' questions from level 4 | ' + Object.keys(share).map(d => d + ' ' + pct(d).toFixed(0) + '%').join(', ') + ' | figures: logic ' + (100 * (modeShare.logic || 0) / n).toFixed(0) + '%, parts ' + (100 * (modeShare.parts || 0) / n).toFixed(0) + '%, holes ' + (100 * (modeShare.holes || 0) / n).toFixed(0) + '%, chain ' + (100 * (modeShare.chain || 0) / n).toFixed(0) + '%' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : '') };
   });
   test('ANA-17 one-screen layout (the CSS rules that keep the question, the explanation and the "next" button on one screen): tiles sized from the window height, examples side by side, tighter spacing - the real fit is measured in a browser', () => {
     const css = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'css', 'iq.css'), 'utf8'), bad = [];
@@ -493,6 +504,7 @@ function run(){
     if (!/\.iq-an-prompt\s*\{[^}]*flex-direction:\s*row;[^}]*flex-wrap:\s*wrap/.test(css)) bad.push('the examples are not side by side');
     if (!/#iq-analogy\s*\{\s*gap:\s*([0-9])px/.test(css)) bad.push('no tighter spacing for the analogy screen');
     if (!/\.iq-an-prompt \.iq-tile\s*\{[^}]*width:\s*var\(--an-tile\)/.test(css)) bad.push('the example tiles ignore the size variable');
+    if (!/#app:has\(#iq-analogy:not\(\.hidden\)\)\s*\{\s*padding-bottom:\s*\d+px/.test(css)) bad.push('the page keeps its 60px of bottom room on the analogy screen (a few pixels of scrolling)');
     const p = H.loadProject(); p.seed(97); const q = pickDesign(p, 'merge', 5), prompt = p.ctx.document.createElement('div'), opts = p.ctx.document.createElement('div');
     p.ctx.iqAnalogyRenderEngine(q, prompt, opts, () => {});
     if (!prompt.classList.contains('iq-an-prompt')) bad.push('the prompt does not get the compact class');
@@ -603,6 +615,105 @@ function run(){
       }
     }
     return { pass: !bad.length, info: drawings + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', pieces, areas, gaps and directions as the cut says') };
+  });
+  test('ANA-20 holes drawing: for every shape and every arrangement of holes (none, one in the middle, two side by side, one off-centre, two one above the other) the picture is checked point by point - covered exactly where the point is inside the shape and outside every hole; every hole lies fully inside, is big enough to see and clear of the others', () => {
+    const p = H.loadProject(), bad = []; let points = 0, pictures = 0;
+    const N = { triangle: 3, square: 4, pentagon: 5, hexagon: 6 }, START = { triangle: -90, square: -45, pentagon: -90, hexagon: 0 };
+    const inShape = (kind, R, x, y) => {
+      if (kind === 'circle') return Math.hypot(x - 40, y - 40) < R;
+      const n = N[kind], ap = R * Math.cos(Math.PI / n);
+      for (let k = 0; k < n; k++){ const a = (START[kind] + (k + 0.5) * 360 / n) * Math.PI / 180; if ((x - 40) * Math.cos(a) + (y - 40) * Math.sin(a) > ap) return false; }
+      return true;
+    };
+    const polyIn = (pts, x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) if ((pts[i][1] > y) !== (pts[j][1] > y) && x < (pts[j][0] - pts[i][0]) * (y - pts[i][1]) / (pts[j][1] - pts[i][1]) + pts[i][0]) c = !c; return c; };
+    const SPOTS = { 0: [], 1: [[0, 0, 0.36]], 2: [[-0.5, 0, 0.26], [0.5, 0, 0.26]], 3: [[0.45, 0, 0.36]], 4: [[0, -0.5, 0.26], [0, 0.5, 0.26]] };
+    for (const shape of ['circle', 'square', 'triangle', 'pentagon', 'hexagon']) for (const scale of [1, 1.3]) for (let code = 0; code <= 4; code++){
+      const R = 80 * 0.34 * scale, rho = shape === 'circle' ? R : R * Math.cos(Math.PI / N[shape]), holes = SPOTS[code].map(([x, y, r]) => ({ cx: 40 + x * rho, cy: 40 + y * rho, r: r * rho }));
+      const svg = p.ctx.renderShapeSVG({ type: 'holes', shape, holes: code, color: '#FF6B6B', scale, count: 1, hollow: false }); pictures++;
+      const m = /<path d="([^"]*)" fill-rule="evenodd"/.exec(svg);
+      if (!m){ bad.push(shape + ' ' + code + ': no drawing'); continue; }
+      const polys = m[1].split('Z').filter(x => x.trim()).map(seg => [...seg.matchAll(/[ML]\s*([-\d.]+) ([-\d.]+)/g)].map(q => [+q[1], +q[2]]));
+      if (polys.length !== 1 + holes.length) bad.push(shape + ' ' + code + ': ' + (polys.length - 1) + ' holes drawn, expected ' + holes.length);
+      polys.slice(1).forEach((hp, i) => {
+        const mid = [hp.reduce((a, q) => a + q[0], 0) / hp.length, hp.reduce((a, q) => a + q[1], 0) / hp.length], area = Math.abs(hp.reduce((a, q, k) => { const r = hp[(k + 1) % hp.length]; return a + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2, h = holes[i];
+        if (!h) return;
+        if (Math.hypot(mid[0] - h.cx, mid[1] - h.cy) > 0.4 || Math.abs(Math.sqrt(area / Math.PI) - h.r) / h.r > 0.03) bad.push(shape + ' ' + code + ': hole ' + i + ' is not where / how big it should be');
+        if (shape !== 'triangle' && h.r < 4.2) bad.push(shape + ' ' + code + ': hole ' + i + ' is only ' + h.r.toFixed(1) + ' wide');
+        for (let k = 0; k < 24; k++){ const a = k * Math.PI / 12; if (!inShape(shape, R - 1.5, h.cx + h.r * Math.cos(a), h.cy + h.r * Math.sin(a))){ bad.push(shape + ' ' + code + ' scale ' + scale + ': hole ' + i + ' reaches the edge of the shape'); break; } }
+      });
+      for (let i = 0; i < holes.length; i++) for (let j = i + 1; j < holes.length; j++) if (Math.hypot(holes[i].cx - holes[j].cx, holes[i].cy - holes[j].cy) - holes[i].r - holes[j].r < 2) bad.push(shape + ' ' + code + ': the holes nearly touch');
+      for (let k = 0; k < 500; k++){
+        const x = 4 + Math.random() * 72, y = 4 + Math.random() * 72;
+        if (inShape(shape, R - 2.5, x, y) !== inShape(shape, R + 2.5, x, y) || holes.some(h => Math.abs(Math.hypot(x - h.cx, y - h.cy) - h.r) < 2.5)) continue;
+        const want = inShape(shape, R, x, y) && !holes.some(h => Math.hypot(x - h.cx, y - h.cy) < h.r), got = polys.filter(pt => polyIn(pt, x, y)).length % 2 === 1; points++;
+        if (want !== got){ bad.push(shape + ' ' + code + ' scale ' + scale + ': the point (' + x.toFixed(1) + ', ' + y.toFixed(1) + ') is ' + (got ? 'covered' : 'empty') + ', expected the opposite'); break; }
+      }
+      if (bad.length > 3) break;
+    }
+    if (p.evalIn("Array.from({ length: 30 }, () => iqAnContext('holes').shapes).some(l => l.includes('triangle') || l.length !== 4)")) bad.push('a hole question uses a triangle (too small for two holes) or not four shapes');
+    const ctx = { mode: 'holes', colours: ['#FF6B6B', '#4ECDC4', '#FFD93D', '#9B5DE5'], shapes: ['circle', 'square', 'triangle', 'pentagon'] };
+    const st = o => Object.assign({ orient: 0, nest: 0, cycle: 0, op: 0, cut: 0, holes: 0, link: 0, cfg: 0, colour: 0, size: 0, fill: 0, count: 1, cap: 1 }, o);
+    if (new Set([0, 1, 2, 3, 4].map(h => p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st({ holes: h }))))).size !== 5) bad.push('the five hole states are not five different pictures');
+    for (const h of [0, 1, 2]) for (const change of [{ colour: 1 }, { size: 1 }, { fill: 1 }]) if (p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st({ holes: h }))) === p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st(Object.assign({ holes: h }, change))))) bad.push('holes ' + h + ': a change of ' + Object.keys(change)[0] + ' cannot be seen');
+    return { pass: !bad.length, info: pictures + ' pictures, ' + points + ' points checked' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', every hole where and as big as it should be') };
+  });
+  test('ANA-21 chain drawing: two or three rings in a row, apart or woven or overlapping; read from what is really drawn - the rings that overlap cross twice, a woven pair has a different ring on top at the two crossings (each ring over once and under once), an overlapping pair has the same ring on top at both, rings apart do not touch; the rings alternate in colour and stay inside the drawing area', () => {
+    const p = H.loadProject(), bad = []; let drawings = 0;
+    const TAU = 2 * Math.PI, norm = v => ((v % TAU) + TAU) % TAU;
+    const parse = svg => {                                                        // strands: {cx, cy, r, from, sweep (full circle: sweep TAU), colour, w}
+      const out = [];
+      for (const m of svg.matchAll(/<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([\d.]+)" fill="none" stroke="([^"]*)" stroke-width="([\d.]+)"/g)) out.push({ cx: +m[1], cy: +m[2], r: +m[3], from: 0, sweep: TAU, colour: m[4], w: +m[5] });
+      for (const m of svg.matchAll(/<path d="M([-\d.]+) ([-\d.]+) A([\d.]+) [\d.]+ 0 ([01]) 1 ([-\d.]+) ([-\d.]+)" fill="none" stroke="([^"]*)" stroke-width="([\d.]+)"/g)){
+        const [sx, sy, r, large, ex, ey] = [+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]], mx = (sx + ex) / 2, my = (sy + ey) / 2, half = Math.hypot(ex - sx, ey - sy) / 2, off = Math.sqrt(Math.max(0, r * r - half * half));
+        const ux = -(ey - sy) / (2 * half), uy = (ex - sx) / (2 * half);
+        for (const sign of [1, -1]){                                              // the centre is one of two points; the arc runs clockwise on the screen (growing angle) and is long exactly when `large` says so
+          const cx = mx + sign * off * ux, cy = my + sign * off * uy, a0 = Math.atan2(sy - cy, sx - cx), sweep = norm(Math.atan2(ey - cy, ex - cx) - a0);
+          if ((sweep > Math.PI) === (large === 1)){ out.push({ cx, cy, r, from: a0, sweep, colour: m[7], w: +m[8] }); break; }
+        }
+      }
+      return out;
+    };
+    const covers = (st, x, y) => Math.abs(Math.hypot(x - st.cx, y - st.cy) - st.r) < 1.5 && norm(Math.atan2(y - st.cy, x - st.cx) - st.from) <= st.sweep + 1e-6;
+    for (const rings of [2, 3]) for (const link of [0, 1, 2]) for (const scale of [1, 1.3]){
+      const svg = p.ctx.renderShapeSVG({ type: 'chain', rings, link, color: '#4C6FFF', color2: '#FF8C42', scale, count: 1 }), strands = parse(svg), vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg).slice(1).map(Number); drawings++;
+      const centres = []; strands.forEach(st => { if (!centres.some(c => Math.abs(c.cx - st.cx) < 1.5 && Math.abs(c.cy - st.cy) < 1.5)) centres.push({ cx: st.cx, cy: st.cy, r: st.r, w: st.w, colour: st.colour }); });
+      centres.sort((a, b) => a.cx - b.cx);
+      const tag = rings + ' rings, link ' + link + ', scale ' + scale + ': ';
+      if (centres.length !== rings){ bad.push(tag + centres.length + ' rings drawn'); continue; }
+      const gapX = centres.slice(1).map((c, i) => c.cx - centres[i].cx), r = centres[0].r, w = centres[0].w;
+      if (centres.some(c => Math.abs(c.cy - centres[0].cy) > 0.8 || Math.abs(c.r - r) > 0.3)) bad.push(tag + 'the rings are not in a row, or not the same size');
+      if (gapX.some(g => Math.abs(g - gapX[0]) > 1.0)) bad.push(tag + 'the rings are not evenly spaced');
+      if (centres.some((c, i) => c.colour !== (i % 2 ? '#FF8C42' : '#4C6FFF'))) bad.push(tag + 'the rings do not alternate in colour');
+      if (centres[0].cx - r - w / 2 < vb[0] || centres[rings - 1].cx + r + w / 2 > vb[0] + vb[2] || centres[0].cy - r - w / 2 < vb[1] || centres[0].cy + r + w / 2 > vb[1] + vb[3]) bad.push(tag + 'outside the drawing area');
+      if (r < 8.5 * Math.min(scale, 1.3) * 0.95) bad.push(tag + 'the rings are only ' + r.toFixed(1) + ' wide');
+      for (let i = 0; i + 1 < rings; i++){
+        const A = centres[i], B = centres[i + 1], d = B.cx - A.cx;
+        if (link === 0){ if (d < 2 * r + w + 1) bad.push(tag + 'rings ' + i + ' and ' + (i + 1) + ' touch although they are apart'); continue; }
+        if (!(d < 2 * r - 2)){ bad.push(tag + 'rings ' + i + ' and ' + (i + 1) + ' do not overlap'); continue; }
+        const h = Math.sqrt(r * r - d * d / 4), mx = (A.cx + B.cx) / 2, over = [-1, 1].map(sy => {            // which ring is drawn across each of the two crossings (above / below the row)
+          const x = mx, y = A.cy + sy * h, a = strands.some(st => Math.abs(st.cx - A.cx) < 1.5 && covers(st, x, y)), b = strands.some(st => Math.abs(st.cx - B.cx) < 1.5 && covers(st, x, y));
+          return a && !b ? 'A' : b && !a ? 'B' : (a && b ? 'both' : 'none');
+        });
+        if (over.some(o => o === 'both' || o === 'none')) bad.push(tag + 'at a crossing of rings ' + i + '/' + (i + 1) + ' ' + (over.includes('both') ? 'both rings are drawn through each other' : 'neither ring is drawn'));
+        else if (link === 1 && over[0] === over[1]) bad.push(tag + 'rings ' + i + '/' + (i + 1) + ' are not woven: the same ring is on top at both crossings');
+        else if (link === 2 && over[0] !== over[1]) bad.push(tag + 'rings ' + i + '/' + (i + 1) + ' are woven although they should only overlap');
+      }
+      // a ring is broken only where another ring passes over it: as many gaps as crossings where it is under
+      centres.forEach((c, i) => {
+        const mine = strands.filter(st => Math.abs(st.cx - c.cx) < 1.5), arcs = mine.filter(st => st.sweep < TAU - 1e-6);
+        let under = 0;
+        [i - 1, i + 1].filter(j => j >= 0 && j < rings).forEach(j => { const o = centres[j], d = Math.abs(o.cx - c.cx); if (link && d < 2 * r) [-1, 1].forEach(sy => { const x = (c.cx + o.cx) / 2, y = c.cy + sy * Math.sqrt(r * r - d * d / 4); if (!mine.some(st => covers(st, x, y))) under++; }); });
+        if (arcs.length !== under) bad.push(tag + 'ring ' + i + ' has ' + arcs.length + ' arcs but is under at ' + under + ' crossings');
+        if (!arcs.length && mine.length !== 1) bad.push(tag + 'ring ' + i + ' is whole but drawn in several pieces');
+      });
+      if (bad.length > 3) break;
+    }
+    // the states: apart / woven / overlapping are three different pictures; every step is visible
+    const ctx = { mode: 'chain', colours: ['#FF6B6B', '#4ECDC4', '#FFD93D', '#9B5DE5'] };
+    const st = o => Object.assign({ orient: 0, nest: 0, cycle: 0, op: 0, cut: 0, holes: 0, link: 0, cfg: 0, colour: 0, size: 0, fill: 0, count: 2, cap: 3, floor: 2 }, o);
+    if (new Set([0, 1, 2].map(l => p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st({ link: l}))))).size !== 3) bad.push('apart, woven and overlapping are not three different pictures');
+    for (const l of [0, 1, 2]) for (const change of [{ colour: 1 }, { size: 1 }, { count: 3 }]) if (p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st({ link: l }))) === p.ctx.renderShapeSVG(p.ctx.iqAnSpec(ctx, st(Object.assign({ link: l }, change))))) bad.push('link ' + l + ': a change of ' + Object.keys(change)[0] + ' cannot be seen');
+    return { pass: !bad.length, info: drawings + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', crossings, gaps and colours as the state says') };
   });
   return out;
 }

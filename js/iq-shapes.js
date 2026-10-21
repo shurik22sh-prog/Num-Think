@@ -236,6 +236,33 @@ function iqRichShapeUnit(type, color, rotation, scale, size, extra){
       return '<polygon points="'+iqPolyPoints(piece.map(p => [p[0] + sx, p[1] + sy]))+'"'+paint(i % 2 ? c2 : color)+'/>';
     }).join('');
   }
+  if (type === 'holes'){           // a shape with holes: extra = { shape, holes (0 none, 1 one in the middle, 2 two side by side, 3 one off-centre, 4 two one above the other), hollow }
+    const R = size * IQ_PARTS_R * scale, P = iqRegularPoly(extra.shape, cx, cy, R), rho = R * Math.cos(Math.PI / IQ_POLY_SIDES[extra.shape]);      // rho: the distance from the middle to the nearest side
+    const spots = { 1: [[0, 0, 0.36]], 2: [[-0.5, 0, 0.26], [0.5, 0, 0.26]], 3: [[0.45, 0, 0.36]], 4: [[0, -0.5, 0.26], [0, 0.5, 0.26]] }[extra.holes || 0] || [];
+    const holes = spots.map(([x, y, r]) => iqRegularPoly('circle', cx + x * rho, cy + y * rho, r * rho));
+    const paint = extra.hollow ? ' fill="#ffffff" stroke="'+color+'" stroke-width="3.4" stroke-linejoin="round"' : ' fill="'+color+'" fill-opacity="0.9" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round"';
+    return '<path d="'+iqPolyPath([P].concat(holes))+'" fill-rule="evenodd"'+paint+'/>';
+  }
+  if (type === 'chain'){           // rings in a row: extra = { rings (2-3), link (0 apart, 1 linked: each ring over its neighbour at one crossing and under at the other, 2 overlapping but not linked), color2 }
+    const n = extra.rings || 2, W = size * Math.min(0.94 * scale, 1.12), D = W / (n + 0.3 * (n - 1)), r = D / 2, w = Math.max(3, D * 0.13), link = extra.link || 0;
+    const step = link ? 1.3 * r : 2.6 * r, x0 = cx - ((n - 1) * step) / 2, a = Math.acos(step / (2 * r));
+    const TAU = 2 * Math.PI, norm = v => ((v % TAU) + TAU) % TAU, gh = (w / 2 + 1.3) / r;          // gh: half the width of a gap, as an angle
+    const gaps = Array.from({ length: n }, () => []);                                               // where each ring is broken, because another ring passes over it
+    if (link) for (let i = 0; i + 1 < n; i++){
+      gaps[i + 1].push(norm(a - Math.PI));                                                          // the top crossing: the next ring is under
+      gaps[link === 1 ? i : i + 1].push(norm(link === 1 ? a : Math.PI - a));                        // the bottom crossing: linked - this ring is under; not linked - the next ring is under again
+    }
+    return gaps.map((g, i) => {
+      const col = i % 2 ? (extra.color2 || color) : color, ccx = x0 + i * step, pt = th => (ccx + r * Math.cos(th)).toFixed(1) + ' ' + (cy + r * Math.sin(th)).toFixed(1);
+      const stroke = ' fill="none" stroke="'+col+'" stroke-width="'+w.toFixed(1)+'"';
+      if (!g.length) return '<circle cx="'+ccx.toFixed(1)+'" cy="'+cy+'" r="'+r.toFixed(1)+'"'+stroke+'/>';
+      const s = g.slice().sort((u, v) => u - v);
+      return s.map((from, k) => {
+        const start = from + gh, end = (k + 1 < s.length ? s[k + 1] : s[0] + TAU) - gh;
+        return '<path d="M'+pt(start)+' A'+r.toFixed(1)+' '+r.toFixed(1)+' 0 '+(end - start > Math.PI ? 1 : 0)+' 1 '+pt(end)+'"'+stroke+'/>';
+      }).join('');
+    }).join('');
+  }
   if (type === 'grid'){            // a 3 x 3 board for the merge questions: extra.cells = nine colours ('' for an empty square)
     const board = size * 0.8 * scale, pitch = board / 3, x0 = cx - board / 2, y0 = cy - board / 2;
     return extra.cells.map((fill, i) => '<rect x="'+(x0 + (i % 3) * pitch + 1.5).toFixed(1)+'" y="'+(y0 + Math.floor(i / 3) * pitch + 1.5).toFixed(1)+'" width="'+(pitch - 3).toFixed(1)+'" height="'+(pitch - 3).toFixed(1)+'" rx="3" '+
@@ -318,7 +345,8 @@ function iqSpecsEqual(a, b){
     (a.outer||'') === (b.outer||'') && (a.inner||'') === (b.inner||'') && (a.color2||'') === (b.color2||'') &&
     (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join() && (a.cells||[]).join() === (b.cells||[]).join() &&
     (a.a||'') === (b.a||'') && (a.b||'') === (b.b||'') && (a.dir||0) === (b.dir||0) && (a.op||'') === (b.op||'') && (a.color3||'') === (b.color3||'') &&
-    (a.shape||'') === (b.shape||'') && (a.cut||0) === (b.cut||0);
+    (a.shape||'') === (b.shape||'') && (a.cut||0) === (b.cut||0) &&
+    (a.holes||0) === (b.holes||0) && (a.rings||0) === (b.rings||0) && (a.link||0) === (b.link||0);
 }
 
 /* ============ Composite multi-part figures (position-rearrangement questions) ============ */
