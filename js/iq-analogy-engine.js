@@ -11,10 +11,13 @@
 //   - the right answer is the rule applied to B,
 //   - every wrong answer is a plausible mistake: the result of a NEIGHBOUR rule (one step different) that the examples rule
 //     out, or the result of forgetting one step.
-// Three question designs:
+// Four question designs:
 //   classic        A -> A', B -> ?                            (one example)
-//   two-examples   A -> A', C -> C', B -> ?                   (two examples with different starting figures)
+//   split-rule     A -> A', C -> C', B -> ?                   (the rule has two parts: the first example shows only the first part, the second only
+//                  the other part, on a different figure; the answer needs both parts together - induction, not just copying one change)
 //   pair-odd       a rule example, and four more pairs: three follow the rule, one does not (find it)
+//   merge          X + Y = Z, X' + Y' = Z', X'' + Y'' = ?     (a dark layer and a light layer lie on top of each other and merge into a third picture;
+//                  the two examples each show only part of what the merge does, see "merge" below)
 // A state is {orient 0-7, nest 0-3, cycle 0-5, colour 0-3, size 0/1, fill 0/1, count}. orient = 4 x mirrored + quarter-turns clockwise.
 // `ctx.mode` says which figure the question uses:
 //   glyph    an asymmetric outline, so turns and reflections show
@@ -141,10 +144,10 @@ function iqAnMistakes(rule, st){
   });
   return out;
 }
-function iqAnPickWrong(ctx, correct, candidates, library, rule, B, mistakes){
+function iqAnPickWrong(ctx, correct, candidates, library, rule, B, mistakes, take){
   const keep = [];
   const add = st => { if (st && !iqAnSameSpec(ctx, st, correct) && !keep.some(k => iqAnSameSpec(ctx, k, st))) keep.push(st); };
-  shuffle((mistakes || []).slice()).slice(0, 1).forEach(add);                   // a swap that stopped half way / a colour that did not move is always among the wrong answers
+  shuffle((mistakes || []).slice()).slice(0, take || 1).forEach(add);           // a swap that stopped half way / a colour that did not move / one part of the rule forgotten is always among the wrong answers
   shuffle(candidates.filter(Boolean)).forEach(add);
   if (keep.length < 3) shuffle(iqAnForgot(rule, B)).forEach(add);
   if (keep.length < 3) shuffle(library.map(r => iqAnApply(r, B))).forEach(add);
@@ -204,21 +207,43 @@ function iqAnClassic(tier){
   }
   throw new Error('iqAnClassic: no valid question.');
 }
-function iqAnTwoExamples(tier){
+// ----- split-rule: each example shows only one part of the rule -----
+// every list of one or two steps on different attributes (a part of a rule): the examples are checked against these, so that each one
+// settles its own part and nothing but its own part
+const IQ_AN_PARTIAL = {};
+function iqAnPartialLibrary(mode){
+  if (IQ_AN_PARTIAL[mode]) return IQ_AN_PARTIAL[mode];
+  const attrs = IQ_AN_ATTRS.filter(a => IQ_AN_MODE_ATTRS[mode].includes(a)), out = [];
+  const build = (start, chosen) => {
+    if (chosen.length) out.push(chosen.slice());
+    if (chosen.length === 2) return;
+    for (let i = start; i < attrs.length; i++) IQ_AN_OPS[attrs[i]].forEach(op => build(i + 1, chosen.concat([[attrs[i], op]])));
+  };
+  build(0, []);
+  IQ_AN_PARTIAL[mode] = out;
+  return out;
+}
+function iqAnSplitSteps(rule){                                                         // two non-empty groups of steps, each in the original order
+  const k = randInt(1, rule.length - 1), first = shuffle(rule.map((_, i) => i)).slice(0, k);
+  return [rule.filter((_, i) => first.includes(i)), rule.filter((_, i) => !first.includes(i))];
+}
+function iqAnSplitRule(tier){
   const mode = iqAnPickMode();
-  for (let attempt = 0; attempt < 600; attempt++){
-    const library = iqAnLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
+  for (let attempt = 0; attempt < 800; attempt++){
+    const library = iqAnLibrary(mode), partial = iqAnPartialLibrary(mode), ctx = iqAnContext(mode), rule = iqAnRule(library, Math.max(tier, 4));
+    const [S1, S2] = iqAnSplitSteps(rule);
     const A = iqAnRandomState(mode), C = iqAnRandomState(mode), B = iqAnRandomState(mode);
-    const A2 = iqAnApply(rule, A), C2 = iqAnApply(rule, C), B2 = iqAnApply(rule, B);
-    if (!A2 || !C2 || !B2 || iqAnSame(A, C) || iqAnSame(A, B) || iqAnSame(C, B) || iqAnSame(A, A2) || iqAnSame(C, C2) || iqAnSame(B, B2)) continue;
-    const both = iqAnFits(library, [[A, A2], [C, C2]]);
-    if (both.length !== 1 || iqAnKey(both[0]) !== iqAnKey(rule)) continue;                                   // the two examples settle the rule
-    const near = iqAnNeighbours(rule, library).filter(r => !both.includes(r)).map(r => iqAnApply(r, B));
-    const wrong = iqAnPickWrong(ctx, B2, near, library, rule, B, iqAnMistakes(rule, B));
+    const A2 = iqAnApply(S1, A), C2 = iqAnApply(S2, C), B2 = iqAnApply(rule, B), P1 = iqAnApply(S1, B), P2 = iqAnApply(S2, B);
+    if (!A2 || !C2 || !B2 || !P1 || !P2 || iqAnSame(A, C) || iqAnSame(A, B) || iqAnSame(C, B) || iqAnSame(A, A2) || iqAnSame(C, C2) || iqAnSame(B, B2)) continue;
+    const f1 = iqAnFits(partial, [[A, A2]]), f2 = iqAnFits(partial, [[C, C2]]);
+    if (f1.length !== 1 || f2.length !== 1 || iqAnKey(f1[0]) !== iqAnKey(S1) || iqAnKey(f2[0]) !== iqAnKey(S2)) continue;           // each example settles exactly its own part
+    const near = iqAnMistakes(rule, B).concat(iqAnNeighbours(rule, library).map(r => iqAnApply(r, B)));
+    const wrong = iqAnPickWrong(ctx, B2, near, library, rule, B, [P1, P2], 2);                       // the two "forgot a part" answers are always among the wrong ones
     if (!wrong) continue;
-    return { design: 'two-examples', ctx, rule, A, A2, C, C2, B, B2, wrong, explanation: 'הכלל: ' + iqAnDescribe(ctx, rule) + '.' };
+    return { design: 'split-rule', ctx, rule, parts: [S1, S2], A, A2, C, C2, B, B2, wrong,
+      explanation: 'הכלל בשני חלקים. הדוגמה הראשונה הראתה: ' + iqAnDescribe(ctx, S1) + '. הדוגמה השנייה הראתה: ' + iqAnDescribe(ctx, S2) + '. בשאלה פועלים שני החלקים יחד.' };
   }
-  throw new Error('iqAnTwoExamples: no valid question.');
+  throw new Error('iqAnSplitRule: no valid question.');
 }
 function iqAnPairOdd(tier){
   const mode = iqAnPickMode();
@@ -236,17 +261,78 @@ function iqAnPairOdd(tier){
     if (!iqAnFits(library, without(oddIndex)).length) continue;                                                // the other four pairs fit one rule
     if (iqAnFits(library, allPairs).length) continue;                                                          // all five do not
     if ([0, 1, 2, 3].some(i => i !== oddIndex && iqAnFits(library, without(i)).length)) continue;             // leaving out any other pair does not help
-    return { design: 'pair-odd', ctx, rule, other, E, E2, pairs, oddIndex, explanation: 'הכלל בדוגמה: ' + iqAnDescribe(ctx, rule) + '. בזוג שנבחר הכלל שונה: ' + iqAnDescribe(ctx, other) + '.' };
+    return { design: 'pair-odd', ctx, rule, other, E, E2, pairs, oddIndex, explanation: 'הכלל בדוגמה: ' + iqAnDescribe(ctx, rule) + '. בזוג שנבחר: ' + iqAnDescribe(ctx, other) + '.' };
   }
   throw new Error('iqAnPairOdd: no valid question.');
 }
 
-// ----- the pool: the three designs -----
+// ----- merge: a dark layer and a light layer on top of each other -----
+// A picture is a 3 x 3 board; the dark layer X and the light layer Y each colour some of its squares. Where the layers lie on top of each other, the squares are
+// of three kinds: only dark (x), only light (y) and both (b). A RULE says what each kind becomes: nothing (0), dark (1), light (2) or a third colour (3).
+// x can only stay dark or vanish, y can only stay light or vanish, b can become anything; the rules that do nothing but copy one layer, or keep only the overlap, are left out:
+// 10 rules. The two examples each show only part of the picture of the rule (the first has no squares in both layers, the second lacks one of the single kinds),
+// so neither example alone settles the rule - the solver puts the two together - and the question has all three kinds of square.
+const IQ_AN_MERGE_PALETTES = [
+  { dark: '#2B3A8F', light: '#FFD93D', third: '#FF6B6B', names: ['כחול כהה', 'צהוב', 'אדום'] },
+  { dark: '#7A2E8E', light: '#8EE3C8', third: '#FF8C42', names: ['סגול', 'ירוק בהיר', 'כתום'] },
+  { dark: '#1F6F5C', light: '#FFC9A8', third: '#4C6FFF', names: ['ירוק כהה', 'אפרסק', 'כחול'] }
+];
+const IQ_AN_MERGE_RULES = (() => {
+  const out = [];
+  for (const x of [0, 1]) for (const y of [0, 2]) for (const b of [0, 1, 2, 3]){
+    if ((!x && !y) || (x === 1 && !y && b === 1) || (!x && y === 2 && b === 2)) continue;       // only the overlap survives (its examples would have to show an empty picture) / only layer X / only layer Y
+    out.push({ x, y, b, key: 'x' + x + 'y' + y + 'b' + b });
+  }
+  return out;
+})();
+const iqAnMergeApply = (rule, X, Y) => X.map((xv, i) => (xv && Y[i] ? rule.b : (xv ? rule.x : (Y[i] ? rule.y : 0))));
+const iqAnMergeFits = (rules, pairs) => rules.filter(r => pairs.every(([X, Y, Z]) => iqAnMergeApply(r, X, Y).join() === Z.join()));
+const iqAnMergeNear = (rule, rules) => rules.filter(r => ['x', 'y', 'b'].filter(f => r[f] !== rule[f]).length === 1);          // one kind of square handled differently
+// a pair of layers of a given kind, as two lists of nine 0/1: apart (no square in both), yInX / xInY (one layer lies entirely within the other), full (all three kinds)
+function iqAnMergeState(kind){
+  const cells = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  let X, Y;
+  if (kind === 'apart'){ const nx = randInt(3, 4), ny = randInt(2, 3); X = cells.slice(0, nx); Y = cells.slice(nx, nx + ny); }
+  else if (kind === 'yInX'){ X = cells.slice(0, randInt(4, 5)); Y = shuffle(X.slice()).slice(0, randInt(2, 3)); }
+  else if (kind === 'xInY'){ Y = cells.slice(0, randInt(4, 5)); X = shuffle(Y.slice()).slice(0, randInt(2, 3)); }
+  else {
+    const o = randInt(1, 2), xo = randInt(1, 3), yo = randInt(1, 3);
+    X = cells.slice(0, o + xo); Y = cells.slice(0, o).concat(cells.slice(o + xo, o + xo + yo));
+  }
+  const mask = list => [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (list.includes(i) ? 1 : 0));
+  return { X: mask(X), Y: mask(Y) };
+}
+function iqAnMergeDescribe(ctx, rule){
+  const [dark, light, third] = ctx.palette.names;
+  return [rule.x ? 'המשבצות של הצורה הכהה (' + dark + ') שלא חופפות לבהירה נשארות' : 'המשבצות של הצורה הכהה (' + dark + ') שלא חופפות לבהירה נעלמות',
+    rule.y ? 'המשבצות של הצורה הבהירה (' + light + ') שלא חופפות לכהה נשארות' : 'המשבצות של הצורה הבהירה (' + light + ') שלא חופפות לכהה נעלמות',
+    ['המשבצות החופפות נעלמות', 'המשבצות החופפות נצבעות בצבע הכהה', 'המשבצות החופפות נצבעות בצבע הבהיר', 'המשבצות החופפות נצבעות בצבע שלישי (' + third + ')'][rule.b]].join('; ');
+}
+function iqAnMerge(tier){
+  for (let attempt = 0; attempt < 1500; attempt++){
+    const ctx = { mode: 'merge', palette: pickOne(IQ_AN_MERGE_PALETTES) }, rule = pickOne(IQ_AN_MERGE_RULES.filter(r => !(IQ_AN_AVOID_REPEAT && iqAnKey([['merge', r.key]]) === IQ_AN_LAST.rule)));
+    const kinds = shuffle(['apart', pickOne(['yInX', 'xInY'])]), shown = kinds.map(k => iqAnMergeState(k)), Q = iqAnMergeState('full');
+    const rows = shown.map(st => ({ X: st.X, Y: st.Y, Z: iqAnMergeApply(rule, st.X, st.Y) })), answer = iqAnMergeApply(rule, Q.X, Q.Y);
+    if (rows.some(r => !r.Z.some(Boolean)) || rows[0].X.join() === rows[1].X.join()) continue;           // a result that shows nothing is no help
+    const fitsEach = rows.map(r => iqAnMergeFits(IQ_AN_MERGE_RULES, [[r.X, r.Y, r.Z]])), fitsBoth = iqAnMergeFits(IQ_AN_MERGE_RULES, rows.map(r => [r.X, r.Y, r.Z]));
+    if (fitsEach.some(f => f.length < 2) || fitsBoth.length !== 1 || fitsBoth[0].key !== rule.key) continue;      // neither example alone settles the rule, the two together do
+    const picks = [], add = z => { if (z.some(Boolean) && z.join() !== answer.join() && !picks.some(k => k.join() === z.join())) picks.push(z); };
+    shuffle(iqAnMergeNear(rule, IQ_AN_MERGE_RULES)).forEach(r => add(iqAnMergeApply(r, Q.X, Q.Y)));                  // one kind of square handled the wrong way
+    if (picks.length < 3) shuffle(IQ_AN_MERGE_RULES).forEach(r => add(iqAnMergeApply(r, Q.X, Q.Y)));
+    if (picks.length < 3) continue;
+    return { design: 'merge', ctx, rule: [['merge', rule.key]], mergeRule: rule, rows, Q, answer, wrong: shuffle(picks.slice(0, 3)),
+      explanation: 'הכלל: ' + iqAnMergeDescribe(ctx, rule) + '.' };
+  }
+  throw new Error('iqAnMerge: no valid question.');
+}
+
+// ----- the pool: the designs -----
 const IQ_AN_DESIGNS = [
   // Pacing: levels 1-3 are ONLY the classic design; the heavier designs arrive from level 4 as an occasional twist (about a third of the questions)
-  { key: 'classic', minTier: 1, weight: 12, make: iqAnClassic },
-  { key: 'two-examples', minTier: 4, weight: 3, make: iqAnTwoExamples },
-  { key: 'pair-odd', minTier: 4, weight: 3, make: iqAnPairOdd }
+  { key: 'classic', minTier: 1, weight: 14, make: iqAnClassic },
+  { key: 'split-rule', minTier: 4, weight: 3, make: iqAnSplitRule },
+  { key: 'pair-odd', minTier: 4, weight: 2, make: iqAnPairOdd },
+  { key: 'merge', minTier: 4, weight: 3, make: iqAnMerge }
 ];
 // every group of shapes in a question respects the hard limit; a question that breaks it is a defect, never shown
 function iqAnAssertLimit(q){
@@ -273,17 +359,32 @@ function iqAnPairSVG(after, before){                                         // 
     '<line x1="50" y1="47" x2="50" y2="55" stroke="#3A3352" stroke-width="2.6" stroke-linecap="round"/><polyline points="45,51 50,56 55,51" fill="none" stroke="#3A3352" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 const iqAnTile = spec => '<div class="iq-tile iq-tile-shape">' + renderShapeSVG(spec) + '</div>';
+// merge pictures: a 3 x 3 board; `cells` are nine colours ('' for an empty square)
+const iqAnBoard = (cells) => renderShapeSVG({ type: 'grid', color: '#3A3352', cells });
+const iqAnLayerCells = (mask, colour) => mask.map(v => (v ? colour : ''));
+const iqAnResultCells = (ctx, codes) => codes.map(c => [''].concat([ctx.palette.dark, ctx.palette.light, ctx.palette.third])[c]);
+function iqAnMergeRowHTML(ctx, row, answered){
+  const tile = svg => '<div class="iq-tile iq-tile-shape">' + svg + '</div>';
+  return '<div class="iq-analogy-row">' + tile(iqAnBoard(iqAnLayerCells(row.X, ctx.palette.dark))) + '<div class="iq-analogy-sep">+</div>' + tile(iqAnBoard(iqAnLayerCells(row.Y, ctx.palette.light))) +
+    '<div class="iq-arrow">=</div>' + (row.Z ? tile(iqAnBoard(iqAnResultCells(ctx, row.Z))) : '<div class="iq-tile iq-tile-blank">?</div>') + '</div>';
+}
 const iqAnRow = (a, b) => '<div class="iq-analogy-row">' + iqAnTile(a) + '<div class="iq-arrow">←</div>' + (b ? iqAnTile(b) : '<div class="iq-tile iq-tile-blank">?</div>') + '</div>';
 function iqAnalogyRenderEngine(q, promptEl, optionsEl, onAnswer){
   const S = st => iqAnSpec(q.ctx, st);
   let options, prompt;
-  if (q.design === 'pair-odd'){
+  if (q.design === 'merge'){
+    prompt = '<div class="iq-prompt-label">שתי צורות מונחות זו על זו וממזגות לצורה שלישית. כל דוגמה מראה רק חלק מהכלל - מה יהיה בשאלה?</div>' + q.rows.map(r => iqAnMergeRowHTML(q.ctx, r)).join('') + iqAnMergeRowHTML(q.ctx, { X: q.Q.X, Y: q.Q.Y, Z: null });
+    options = [{ html: iqAnBoard(iqAnResultCells(q.ctx, q.answer)), isCorrect: true }].concat(q.wrong.map(w => ({ html: iqAnBoard(iqAnResultCells(q.ctx, w)), isCorrect: false })));
+  } else if (q.design === 'pair-odd'){
     prompt = '<div class="iq-prompt-label">בדוגמה הצורה משתנה לפי כלל. איזה זוג לא מתאים לאותו כלל?</div>' + iqAnRow(S(q.E), S(q.E2));
     options = q.pairs.map((p, i) => ({ html: iqAnPairSVG(S(p[1]), S(p[0])), isCorrect: i === q.oddIndex }));
   } else {
-    prompt = '<div class="iq-prompt-label">השלימו את האנלוגיה:</div>' + iqAnRow(S(q.A), S(q.A2)) + (q.design === 'two-examples' ? iqAnRow(S(q.C), S(q.C2)) : '') + iqAnRow(S(q.B), null);
+    const split = q.design === 'split-rule';
+    prompt = '<div class="iq-prompt-label">' + (split ? 'כל דוגמה מראה רק חלק מהשינוי. מה קורה כששני החלקים פועלים יחד?' : 'השלימו את האנלוגיה:') + '</div>' +
+      iqAnRow(S(q.A), S(q.A2)) + (split ? iqAnRow(S(q.C), S(q.C2)) : '') + iqAnRow(S(q.B), null);
     options = [{ html: renderShapeSVG(S(q.B2)), isCorrect: true }].concat(q.wrong.map(w => ({ html: renderShapeSVG(S(w)), isCorrect: false })));
   }
+  promptEl.classList.add('iq-an-prompt');
   promptEl.innerHTML = prompt;
   optionsEl.classList.add('iq-options-grow');
   renderIQMultipleChoice(optionsEl, options, isCorrect => {

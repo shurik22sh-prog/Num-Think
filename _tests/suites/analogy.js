@@ -36,7 +36,7 @@ function glyphPts(p, id, orient){                                   // the outli
 const ORDER = ['orient', 'nest', 'cycle', 'colour', 'size', 'fill', 'count'];
 const OPS = { orient: ['+90', '-90', '180', 'flipH', 'flipV'], nest: ['swap'], cycle: ['+1', '-1'], colour: ['pair'], size: ['flip'], fill: ['flip'], count: ['+1', '-1'] };
 const MODE_ATTRS = { glyph: ['orient', 'colour', 'size', 'fill', 'count'], shapes: ['colour', 'size', 'fill', 'count'], nested: ['nest', 'colour', 'size', 'fill', 'count'], spin: ['cycle', 'colour', 'size', 'count'] };
-const MUST = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'] };
+const MUST = { glyph: ['orient', 'fill'], shapes: ['fill'], nested: ['nest'], spin: ['cycle'], merge: ['merge'] };
 const CAPS = { glyph: 2, nested: 2, spin: 2, shapes: 4 };
 const PERMS_T = [[0, 1, 2], [2, 0, 1], [1, 2, 0], [0, 2, 1], [2, 1, 0], [1, 0, 2]];          // region -> palette colour, six ways
 // a test-side figure: {pts (glyph outline or null), colour, size, fill, count, cap, nest {outer, inner, cols} (shape in shape), regions (the colours of the three regions)}
@@ -80,23 +80,92 @@ const ruleKey = r => r.map(s => s.join(' ')).join(' | ');
 const asRule = r => r.map(s => s.slice());
 const fitsAll = (lib, pairs) => lib.filter(r => pairs.every(([a, b]) => sameFig(applyRule(r, a), b)));
 const look = canon;
+// every list of one or two steps on different attributes: a part of a rule
+function partialLibrary(mode){
+  const attrs = ORDER.filter(a => MODE_ATTRS[mode].includes(a)), rules = [];
+  const sub = (from, chosen) => {
+    if (chosen.length) rules.push(chosen);
+    if (chosen.length === 2) return;
+    for (let i = from; i < attrs.length; i++) for (const op of OPS[attrs[i]]) sub(i + 1, chosen.concat([[attrs[i], op]]));
+  };
+  sub(0, []);
+  return rules;
+}
+const PART = { glyph: partialLibrary('glyph'), shapes: partialLibrary('shapes'), nested: partialLibrary('nested'), spin: partialLibrary('spin') };
+// the merge model, written here from the plain description: what each of the three kinds of square becomes
+// (a square only in the dark layer / only in the light layer / in both), 0 nothing, 1 dark, 2 light, 3 a third colour
+const MERGE_LIB = [];
+for (const x of [0, 1]) for (const y of [0, 2]) for (const b of [0, 1, 2, 3]){
+  const nothing = !x && !y, onlyDark = x === 1 && !y && b === 1, onlyLight = !x && y === 2 && b === 2;
+  if (!nothing && !onlyDark && !onlyLight) MERGE_LIB.push({ x, y, b });
+}
+const mergeCell = (r, xv, yv) => (xv && yv ? r.b : xv ? r.x : yv ? r.y : 0);
+const mergeApply = (r, X, Y) => X.map((xv, i) => mergeCell(r, xv, Y[i]));
+const mergeKey = r => 'x' + r.x + 'y' + r.y + 'b' + r.b;
+const mergeFits = pairs => MERGE_LIB.filter(r => pairs.every(([X, Y, Z]) => mergeApply(r, X, Y).join() === Z.join()));
+const kinds = (X, Y) => ({ x: X.filter((v, i) => v && !Y[i]).length, y: Y.filter((v, i) => v && !X[i]).length, b: X.filter((v, i) => v && Y[i]).length });
 const pickDesign = (p, key, tier) => p.evalIn('IQ_AN_DESIGNS').find(d => d.key === key).make(tier);
 
+function checkMerge(q){
+  const e = [], rule = MERGE_LIB.find(r => mergeKey(r) === q.mergeRule.key);
+  if (!rule) return ['the rule is not in the merge library'];
+  if (q.ctx.palette.names.length !== 3 || new Set([q.ctx.palette.dark, q.ctx.palette.light, q.ctx.palette.third]).size !== 3) e.push('palette');
+  if (q.rows.length !== 2) e.push('not two examples');
+  q.rows.forEach((r, i) => {
+    if (mergeApply(rule, r.X, r.Y).join() !== r.Z.join()) e.push('example ' + i + ' does not follow the rule (checked square by square)');
+    if (!r.Z.some(Boolean)) e.push('example ' + i + ' shows nothing');
+    if (mergeFits([[r.X, r.Y, r.Z]]).length < 2) e.push('example ' + i + ' alone already settles the rule');
+  });
+  const fits = mergeFits(q.rows.map(r => [r.X, r.Y, r.Z]));
+  if (fits.length !== 1 || mergeKey(fits[0]) !== mergeKey(rule)) e.push('the two examples do not settle exactly this rule');
+  const k = kinds(q.Q.X, q.Q.Y);
+  if (!(k.x >= 1 && k.y >= 1 && k.b >= 1)) e.push('the question lacks one of the three kinds of square');
+  [q.Q.X, q.Q.Y].concat(q.rows.flatMap(r => [r.X, r.Y])).forEach(m => { const n = m.filter(Boolean).length; if (n < 2 || n > 5 || m.length !== 9) e.push('a layer has ' + n + ' squares'); });
+  if (mergeApply(rule, q.Q.X, q.Q.Y).join() !== q.answer.join()) e.push('the answer is not the rule applied to the question (checked square by square)');
+  const shown = [q.answer].concat(q.wrong).map(z => z.join());
+  if (q.wrong.length !== 3 || new Set(shown).size !== 4) e.push('the four answers are not four different pictures');
+  const results = new Set(MERGE_LIB.map(r => mergeApply(r, q.Q.X, q.Q.Y).join()));
+  if (q.wrong.some(w => !results.has(w.join()))) e.push('a wrong answer is not what any merge rule gives');
+  if (q.wrong.some(w => !w.some(Boolean))) e.push('an empty answer');
+  return e;
+}
+function checkSplit(p, q, lib, F){
+  const e = [], rule = asRule(q.rule), S1 = asRule(q.parts[0]), S2 = asRule(q.parts[1]);
+  const all = S1.concat(S2).map(s => s.join(' ')).sort().join('|');
+  if (!S1.length || !S2.length || all !== rule.map(s => s.join(' ')).sort().join('|')) e.push('the two parts are not the whole rule');
+  if (new Set(S1.concat(S2).map(s => s[0])).size !== S1.length + S2.length) e.push('the parts share an attribute');
+  if (!sameFig(applyRule(S1, F(q.A)), F(q.A2))) e.push('the first example does not show the first part (checked on the points)');
+  if (!sameFig(applyRule(S2, F(q.C)), F(q.C2))) e.push('the second example does not show the second part (checked on the points)');
+  const f1 = fitsAll(PART[q.ctx.mode], [[F(q.A), F(q.A2)]]), f2 = fitsAll(PART[q.ctx.mode], [[F(q.C), F(q.C2)]]);
+  if (f1.length !== 1 || ruleKey(f1[0]) !== ruleKey(S1)) e.push('the first example does not settle exactly its part');
+  if (f2.length !== 1 || ruleKey(f2[0]) !== ruleKey(S2)) e.push('the second example does not settle exactly its part');
+  const full = applyRule(rule, F(q.B)), p1 = applyRule(S1, F(q.B)), p2 = applyRule(S2, F(q.B));
+  if (!sameFig(full, F(q.B2))) e.push("B' is not both parts applied to B (checked on the points)");
+  const shown = [q.B2].concat(q.wrong).map(s => look(F(s)));
+  if (q.wrong.length !== 3 || new Set(shown).size !== 4) e.push('the four answers are not four different pictures');
+  if (!q.wrong.some(w => sameFig(F(w), p1))) e.push('the answer with only the first part is missing among the wrong ones');
+  if (!q.wrong.some(w => sameFig(F(w), p2))) e.push('the answer with only the second part is missing among the wrong ones');
+  if (!lib.some(r => ruleKey(r) === ruleKey(rule))) e.push('the whole rule is not in the library');
+  if (look(F(q.A)) === look(F(q.C)) || look(F(q.A)) === look(F(q.B)) || look(F(q.C)) === look(F(q.B))) e.push('two starting figures look alike');
+  return e;
+}
 function checkQuestion(p, q){
+  if (q.design === 'merge') return checkMerge(q);
   const e = [], lib = LIB[q.ctx.mode], rule = asRule(q.rule), F = st => figure(p, q.ctx, st);
   if (!lib.some(r => ruleKey(r) === ruleKey(rule))) e.push('the rule is not in the library');
   if (q.ctx.colours.length !== 4 || new Set(q.ctx.colours).size !== 4) e.push('colour palette');
   const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
   if (all.some(st => st.count < 1 || st.count > 4)) e.push('a group has more than 4 shapes');
   if (q.ctx.mode !== 'shapes' && all.some(st => st.count > 2)) e.push('a ' + q.ctx.mode + ' group has more than 2 copies');
-  if (q.design === 'classic' || q.design === 'two-examples'){
-    const exs = [[q.A, q.A2]].concat(q.design === 'two-examples' ? [[q.C, q.C2]] : []);
+  if (q.design === 'split-rule'){
+    e.push(...checkSplit(p, q, lib, F));
+  } else if (q.design === 'classic'){
+    const exs = [[q.A, q.A2]];
     exs.forEach(([a, b]) => { if (!sameFig(applyRule(rule, F(a)), F(b))) e.push('an example does not follow the rule (checked on the points)'); });
     if (!sameFig(applyRule(rule, F(q.B)), F(q.B2))) e.push("B' is not the rule applied to B (checked on the points)");
     const fit = fitsAll(lib, exs.map(([a, b]) => [F(a), F(b)]));
     if (!fit.some(r => ruleKey(r) === ruleKey(rule))) e.push('the rule does not fit its own examples');
     fit.forEach(r => { const o = applyRule(r, F(q.B)); if (o && !sameFig(o, F(q.B2))) e.push('a rule that fits the examples gives another answer for B: ' + ruleKey(r)); });
-    if (q.design === 'two-examples' && fit.length !== 1) e.push('the two examples do not settle one rule');
     const shown = [q.B2].concat(q.wrong).map(s => look(F(s)));
     if (q.wrong.length !== 3 || new Set(shown).size !== 4) e.push('the four answers are not four different pictures');
     if (look(F(q.A)) === look(F(q.A2)) || look(F(q.B)) === look(F(q.B2))) e.push('a figure does not change');
@@ -135,13 +204,13 @@ function run(){
     if (p.evalIn('Object.keys(IQ_GLYPHS).length') < 20) bad.push('too few glyphs');
     return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : mine.join(' + ') + ' rules, identical in production and test, ' + p.evalIn('Object.keys(IQ_GLYPHS).length') + ' glyphs' };
   });
-  ['classic', 'two-examples', 'pair-odd'].forEach((key, k) => {
-    test('ANA-' + (2 + k) + ' ' + key + ': ' + N + ' questions checked against the independent library, turns and reflections verified on the points', () => {
+  ['classic', 'split-rule', 'pair-odd', 'merge'].forEach((key, k) => {
+    test('ANA-' + (k < 3 ? 2 + k : 14) + ' ' + key + ': ' + N + ' questions checked against the independent library' + (key === 'merge' ? ', square by square' : ', turns and reflections verified on the points'), () => {
       const p = H.loadProject(); p.seed(80 + k); const bad = []; let invalid = 0, ex = null; const rules = new Set();
       const tiers = key === 'classic' ? [1, 2, 3, 4, 5, 6, 7] : [4, 5, 6, 7];
       for (let i = 0; i < N; i++){
         const t = tiers[i % tiers.length], q = pickDesign(p, key, t), errs = checkQuestion(p, q);
-        const n = q.rule.length; if (t <= 2 && n !== 2) errs.push('level ' + t + ' rule has ' + n + ' steps'); if (t >= 5 && n !== 3) errs.push('level ' + t + ' rule has ' + n + ' steps');
+        const n = q.rule.length; if (key !== 'merge' && t <= 2 && n !== 2) errs.push('level ' + t + ' rule has ' + n + ' steps'); if (key !== 'merge' && t >= 5 && n !== 3) errs.push('level ' + t + ' rule has ' + n + ' steps');
         rules.add(ruleKey(q.rule));
         if (errs.length){ invalid++; ex = ex || errs[0]; }
       }
@@ -152,8 +221,8 @@ function run(){
   test('ANA-5 rendering: the real renderer draws the right pictures, exactly one option is correct, the four options look different, the rule is shown after a correct answer', () => {
     const p = H.loadProject(); p.seed(85); const bad = [];
     for (let i = 0; i < Math.round(N / 2); i++){
-      const key = ['classic', 'two-examples', 'pair-odd'][i % 3], q = pickDesign(p, key, key === 'classic' ? 1 + (i % 7) : 4 + (i % 4)), r = fakeRender(p, q);
-      const svgs = h => (h.match(/<svg\b/g) || []).length, wantPrompt = { classic: 3, 'two-examples': 5, 'pair-odd': 2 }[key];
+      const key = ['classic', 'split-rule', 'pair-odd', 'merge'][i % 4], q = pickDesign(p, key, key === 'classic' ? 1 + (i % 7) : 4 + (i % 4)), r = fakeRender(p, q);
+      const svgs = h => (h.match(/<svg\b/g) || []).length, wantPrompt = { classic: 3, 'split-rule': 5, 'pair-odd': 2, merge: 8 }[key];
       if (svgs(r.prompt) !== wantPrompt) bad.push(key + ': prompt has ' + svgs(r.prompt) + ' pictures, expected ' + wantPrompt);
       if (r.options.length !== 4) bad.push(key + ': ' + r.options.length + ' options');
       if (r.options.some(h => /NaN|undefined/.test(h)) || /NaN|undefined/.test(r.prompt)) bad.push(key + ': NaN in a picture');
@@ -179,7 +248,7 @@ function run(){
       }
       if (t <= 3 && heavy) bad.push('a heavy design at level ' + t);
       if (t >= 4 && (heavy / 400 > 0.40 || heavy / 400 < 0.2)) bad.push('heavy designs are ' + (100 * heavy / 400).toFixed(0) + '% at level ' + t);
-      if (t >= 4 && !(byTier[t].has('classic') && byTier[t].has('two-examples') && byTier[t].has('pair-odd'))) bad.push('a design is missing at level ' + t);
+      if (t >= 4 && !(['classic', 'split-rule', 'pair-odd', 'merge'].every(d => byTier[t].has(d)))) bad.push('a design is missing at level ' + t);
     }
     if (p.evalIn('typeof IQ_ANALOGY_MECHANICS') !== 'undefined' || p.evalIn('typeof generateAnalogy') !== 'undefined') bad.push('the older mechanics still exist');
     if (repeatsD) bad.push(repeatsD + ' heavy designs repeated in a row');
@@ -232,7 +301,7 @@ function run(){
     for (let k = 0; k < N; k++){
       const t = 1 + (k % 7), q = p.ctx.iqAnalogyPick(t);
       const states = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
-      states.forEach(st => { groups++; seenCounts.add(st.count); if (st.count > 4 || st.count < 1) bad.push('count ' + st.count + ' at level ' + t); });
+      states.filter(st => st.count !== undefined).forEach(st => { groups++; seenCounts.add(st.count); if (st.count > 4 || st.count < 1) bad.push('count ' + st.count + ' at level ' + t); });
       if (k < 60){
         const prompt = p.ctx.document.createElement('div'), opts = p.ctx.document.createElement('div');
         cat.renderQuestion(t, prompt, opts, () => {});
@@ -328,13 +397,13 @@ function run(){
     }
     return { pass: !bad.length, info: checked + ' drawings' + (bad.length ? ' | WRONG: ' + bad.slice(0, 4).join(' | ') : ', all six colourings, both layouts, both directions') };
   });
-  test('ANA-13 logical wrong answers and visual load: in a swap question a half-finished swap is always among the wrong answers, in a rotating-colour question a figure where one colour stayed put is; no rotating-colour or inner/outer group has more than 2 figures', () => {
+  test('ANA-13 logical wrong answers and visual load: in a classic swap question a half-finished swap is always among the wrong answers, in a rotating-colour question a figure where one colour stayed put is; no rotating-colour or inner/outer group has more than 2 figures', () => {
     const p = H.loadProject(); p.seed(93); const bad = []; let swapQ = 0, swapHit = 0, spinQ = 0, spinHit = 0, loadMax = 0;
     for (let i = 0; i < 4 * N; i++){
       const q = p.ctx.iqAnalogyPick(1 + (i % 7)), mode = q.ctx.mode;
       const all = [q.A, q.A2, q.B, q.B2, q.C, q.C2, q.E, q.E2].concat(q.wrong || [], (q.pairs || []).flat()).filter(Boolean);
       if (mode === 'nested' || mode === 'spin') all.forEach(st => { loadMax = Math.max(loadMax, st.count); });
-      if (q.design === 'pair-odd') continue;
+      if (q.design !== 'classic') continue;                                       // (the split-rule design has its own wrong answers: the two "only one part" pictures, checked in ANA-3)
       if (mode === 'nested' && q.rule.some(s => s[0] === 'nest')){ swapQ++; if (q.wrong.some(w => w.nest >= 2)) swapHit++; }
       if (mode === 'spin'){
         spinQ++;
@@ -346,6 +415,70 @@ function run(){
     if (!swapQ || swapHit !== swapQ) bad.push('half-finished swap among the wrong answers in ' + swapHit + ' of ' + swapQ + ' swap questions');
     if (!spinQ || spinHit !== spinQ) bad.push('a colour that did not move among the wrong answers in ' + spinHit + ' of ' + spinQ + ' rotating-colour questions');
     return { pass: !bad.length, info: 'swap questions ' + swapHit + '/' + swapQ + ' | rotating-colour questions ' + spinHit + '/' + spinQ + ' | largest group ' + loadMax + (bad.length ? ' | WRONG: ' + bad.join(' | ') : '') };
+  });
+  test('ANA-15 merge drawing: 10 merge rules counted here independently; the 3 x 3 board is drawn square by square with the colours of the state, inside its drawing area, and the real renderer shows the two layers, the result and the four answers exactly as the question says', () => {
+    const p = H.loadProject(); p.seed(95); const bad = [];
+    const prod = p.evalIn('IQ_AN_MERGE_RULES.map(r => r.key).sort().join()'), mine = MERGE_LIB.map(mergeKey).sort().join();
+    if (MERGE_LIB.length !== 10) bad.push('test-side merge library has ' + MERGE_LIB.length + ' rules');
+    if (prod !== mine) bad.push('production and test merge libraries differ');
+    const rects = svg => [...svg.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="3" fill="([^"]*)"/g)].map(m => ({ x: +m[1], y: +m[2], w: +m[3], h: +m[4], fill: m[5] }));
+    let boards = 0;
+    for (let k = 0; k < 120; k++){
+      const cells = Array.from({ length: 9 }, () => (Math.random() < 0.5 ? ['#2B3A8F', '#FFD93D', '#FF6B6B'][Math.floor(Math.random() * 3)] : ''));
+      const svg = p.ctx.renderShapeSVG({ type: 'grid', color: '#3A3352', cells }), rs = rects(svg), vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg).slice(1).map(Number); boards++;
+      if (rs.length !== 9){ bad.push('a board has ' + rs.length + ' squares'); break; }
+      rs.forEach((r, i) => {
+        if ((cells[i] ? cells[i] : '#3A3352') !== r.fill) bad.push('square ' + i + ' has the wrong colour');
+        const col = i % 3, row = Math.floor(i / 3), c0 = rs[0];
+        if (Math.abs(r.x - (c0.x + col * (r.w + 3))) > 0.2 || Math.abs(r.y - (c0.y + row * (r.h + 3))) > 0.2) bad.push('square ' + i + ' is not on the 3 x 3 grid');
+        if (r.x < vb[0] || r.y < vb[1] || r.x + r.w > vb[0] + vb[2] || r.y + r.h > vb[1] + vb[3]) bad.push('square ' + i + ' is outside the drawing area');
+      });
+    }
+    const boardOf = (html, pal) => [...html.matchAll(/<svg\b[^>]*>(.*?)<\/svg>/g)].map(m => rects(m[0]).map(r => ({ [pal.dark]: 'D', [pal.light]: 'L', [pal.third]: 'T' })[r.fill] || '.').join(''));
+    for (let k = 0; k < 60; k++){
+      const q = pickDesign(p, 'merge', 4 + (k % 4)), pal = q.ctx.palette, r = fakeRender(p, q);
+      const layer = (m, c) => m.map(v => (v ? c : '.')).join(''), res = z => z.map(c => ['.', 'D', 'L', 'T'][c]).join('');
+      const want = [];
+      q.rows.forEach(row => want.push(layer(row.X, 'D'), layer(row.Y, 'L'), res(row.Z)));
+      want.push(layer(q.Q.X, 'D'), layer(q.Q.Y, 'L'));
+      const got = boardOf(r.prompt, pal);
+      if (got.join() !== want.join()) bad.push('the prompt does not show the question (' + got.length + ' boards)');
+      const opts = r.options.map(h => boardOf(h, pal)[0]).sort().join(), wantOpts = [q.answer].concat(q.wrong).map(res).sort().join();
+      if (opts !== wantOpts) bad.push('the four answers are not the four pictures of the question');
+      if (r.results.filter(v => v === true).length !== 1) bad.push('not exactly one correct option');
+      if (!/^הכלל/.test(r.expl)) bad.push('no rule shown');
+      if (bad.length > 3) break;
+    }
+    return { pass: !bad.length, info: boards + ' boards drawn, 60 merge questions rendered' + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : ', every square as the state says') };
+  });
+  test('ANA-16 the new designs by level: split-rule, pair-odd and merge arrive only from level 4, each is a minor twist (merge and split-rule about a tenth of the questions each at level 4 and up), and in split-rule every question has two examples that each show only one part', () => {
+    const p = H.loadProject(); p.seed(96); const bad = []; const share = {}; let n = 0, partialLooks = 0, splitQ = 0;
+    for (let t = 1; t <= 7; t++) for (let i = 0; i < 300; i++){
+      const q = p.ctx.iqAnalogyPick(t);
+      if (t <= 3 && q.design !== 'classic') bad.push('level ' + t + ' has a ' + q.design + ' question');
+      if (t >= 4){ n++; share[q.design] = (share[q.design] || 0) + 1; }
+      if (q.design === 'split-rule'){                                              // each example shows a part that is shorter than the whole rule (the parts themselves are checked step by step in ANA-3)
+        splitQ++;
+        if (q.parts.length === 2 && q.parts.every(part => part.length >= 1 && part.length < q.rule.length)) partialLooks++;
+      }
+    }
+    const pct = d => 100 * (share[d] || 0) / n;
+    ['split-rule', 'merge'].forEach(d => { if (pct(d) < 7 || pct(d) > 18) bad.push(d + ' is ' + pct(d).toFixed(0) + '% of the questions from level 4'); });
+    if (pct('classic') < 55) bad.push('classic is only ' + pct('classic').toFixed(0) + '%');
+    if (partialLooks !== splitQ) bad.push('a split-rule example shows the whole rule (' + (splitQ - partialLooks) + ' of ' + splitQ + ')');
+    return { pass: !bad.length, info: n + ' questions from level 4 | ' + Object.keys(share).map(d => d + ' ' + pct(d).toFixed(0) + '%').join(', ') + (bad.length ? ' | WRONG: ' + bad.slice(0, 3).join(' | ') : '') };
+  });
+  test('ANA-17 one-screen layout (the CSS rules that keep the question, the explanation and the "next" button on one screen): tiles sized from the window height, examples side by side, tighter spacing - the real fit is measured in a browser', () => {
+    const css = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'css', 'iq.css'), 'utf8'), bad = [];
+    if (!/\.iq-options\.iq-options-grow\s*\{[^}]*--odd-tile:\s*clamp\([^}]*\d+vh/.test(css)) bad.push('the answer tiles do not depend on the window height');
+    if (!/\.iq-an-prompt\s*\{[^}]*--an-tile:\s*clamp\([^}]*\d+vh/.test(css)) bad.push('the example tiles do not depend on the window height');
+    if (!/\.iq-an-prompt\s*\{[^}]*flex-direction:\s*row;[^}]*flex-wrap:\s*wrap/.test(css)) bad.push('the examples are not side by side');
+    if (!/#iq-analogy\s*\{\s*gap:\s*([0-9])px/.test(css)) bad.push('no tighter spacing for the analogy screen');
+    if (!/\.iq-an-prompt \.iq-tile\s*\{[^}]*width:\s*var\(--an-tile\)/.test(css)) bad.push('the example tiles ignore the size variable');
+    const p = H.loadProject(); p.seed(97); const q = pickDesign(p, 'merge', 5), prompt = p.ctx.document.createElement('div'), opts = p.ctx.document.createElement('div');
+    p.ctx.iqAnalogyRenderEngine(q, prompt, opts, () => {});
+    if (!prompt.classList.contains('iq-an-prompt')) bad.push('the prompt does not get the compact class');
+    return { pass: !bad.length, info: bad.length ? 'WRONG: ' + bad.join(' | ') : 'height-based tiles, side-by-side examples, compact class applied' };
   });
   return out;
 }

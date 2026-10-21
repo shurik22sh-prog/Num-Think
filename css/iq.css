@@ -181,11 +181,25 @@
 .iq-options.iq-options-odd{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 150px); max-width:800px; }
 .iq-options.iq-options-odd.iq-options-large{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 180px); }
 .iq-options-odd .iq-option-btn{ width:var(--odd-tile); height:var(--odd-tile); min-width:0; padding:4px; }
-.iq-options.iq-options-grow{ --odd-tile:clamp(60px, calc((100vw - 100px) / 4), 150px); max-width:800px; }          /* shape analogies: the same growing tiles */
+.iq-options.iq-options-grow{ --odd-tile:clamp(56px, min(calc((100vw - 100px) / 4), 16vh), 150px); max-width:800px; }          /* shape analogies: growing tiles, but never so tall that the page needs scrolling */
 .iq-options-grow .iq-option-btn{ width:var(--odd-tile); height:var(--odd-tile); min-width:0; padding:4px; }
+
+/* Shape analogies: the whole question - the examples, the four answers, the explanation and the "next" button - fits in one screen height with no scrolling.
+   The tiles size themselves from the height of the window, the examples sit side by side (they wrap under each other only when the window is narrow),
+   and the spacing around them is tighter than in the other games. */
+#iq-analogy{ gap:6px; }
+#iq-analogy .iq-reset-progress-btn{ margin-top:0; padding:2px; }
+#iq-analogy .iq-options-label{ display:none; }                    /* the line above the examples already says what to do */
+#iq-analogy .iq-explanation{ max-width:min(920px, 100%); font-size:14px; }
+#iq-analogy .iq-explanation:not(:empty){ padding:6px 14px; }
+.iq-an-prompt{ --an-tile:clamp(48px, 10vh, 96px); flex-direction:row; flex-wrap:wrap; justify-content:center; gap:6px 12px; }
+.iq-an-prompt .iq-prompt-label{ flex-basis:100%; text-align:center; }
+.iq-an-prompt .iq-analogy-row{ padding:6px 12px; gap:8px; border-width:2px; }
+.iq-an-prompt .iq-tile{ width:var(--an-tile); height:var(--an-tile); min-width:var(--an-tile); }
 
 @media (max-width:600px){
   .iq-tile, .iq-matrix-cell, .iq-option-btn{ width:60px; height:60px; min-width:60px; font-size:22px; }
+  .iq-an-prompt{ --an-tile:clamp(40px, 8vh, 64px); }                  /* a phone stacks the examples, so each one is a little smaller */
   .iq-tile-blank{ font-size:26px; }
   .iq-option-btn.iq-option-text{ font-size:20px; }
 }

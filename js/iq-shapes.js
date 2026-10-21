@@ -144,6 +144,11 @@ function iqRichShapeUnit(type, color, rotation, scale, size, extra){
         (cx + outerR * Math.cos(a1)).toFixed(1)+' '+(cy + outerR * Math.sin(a1)).toFixed(1)+' Z" fill="'+cols[i]+'" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>';
     }).join('') + frame;
   }
+  if (type === 'grid'){            // a 3 x 3 board for the merge questions: extra.cells = nine colours ('' for an empty square)
+    const board = size * 0.8 * scale, pitch = board / 3, x0 = cx - board / 2, y0 = cy - board / 2;
+    return extra.cells.map((fill, i) => '<rect x="'+(x0 + (i % 3) * pitch + 1.5).toFixed(1)+'" y="'+(y0 + Math.floor(i / 3) * pitch + 1.5).toFixed(1)+'" width="'+(pitch - 3).toFixed(1)+'" height="'+(pitch - 3).toFixed(1)+'" rx="3" '+
+      (fill ? 'fill="'+fill+'" stroke="#3A3352" stroke-opacity="0.35" stroke-width="1"' : 'fill="#3A3352" fill-opacity="0.07" stroke="#3A3352" stroke-opacity="0.18" stroke-width="1"')+'/>').join('');
+  }
   if (type === 'glyph'){
     return '<polygon points="'+iqGlyphPoints(extra.glyph, rotation, extra.mirror, cx, cy, outerR)+'" fill="'+innerFill+'" stroke="'+color+'" stroke-width="'+(extra.hollow ? 3.4 : 2.5)+'" stroke-linejoin="round"/>';
   }
@@ -219,7 +224,7 @@ function iqSpecsEqual(a, b){
     (a.scale||1) === (b.scale||1) && (a.count||1) === (b.count||1) &&
     (a.glyph||'') === (b.glyph||'') && !!a.mirror === !!b.mirror && !!a.hollow === !!b.hollow &&
     (a.outer||'') === (b.outer||'') && (a.inner||'') === (b.inner||'') && (a.color2||'') === (b.color2||'') &&
-    (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join();
+    (a.layout||'') === (b.layout||'') && (a.colors||[]).join() === (b.colors||[]).join() && (a.cells||[]).join() === (b.cells||[]).join();
 }
 
 /* ============ Composite multi-part figures (position-rearrangement questions) ============ */
