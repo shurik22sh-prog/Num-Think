@@ -108,17 +108,34 @@ function iqShapeMarkup(type, cx, cy, r, color){
 // to a circular outer frame around the same rotated inner shape.
 const IQ_TYPE_SIDES = { triangle: 3, square: 4, pentagon: 5, hexagon: 6 };
 
-function iqRichShapeUnit(type, color, rotation, scale, size){
+// GLYPHS: asymmetric outlines (no rotational symmetry and no mirror axis), so every rotation AND every reflection of one looks different.
+// Points are in "flag units" (largest distance from the centre = 24) and clockwise-on-screen rotation is positive.
+// Other files add outlines here (iq-analogy-engine.js registers the chiral cell shapes of the odd-one-out game).
+const IQ_GLYPHS = { flag: [[-24, -24], [24, -24], [24, 14], [2, 14], [2, 24], [-24, 24]] };
+// the outline of a glyph, mirrored left-right when `mirror` is set and then turned `rotation` degrees clockwise, as "x,y" text about (cx, cy)
+function iqGlyphPoints(id, rotation, mirror, cx, cy, radius){
+  const pts = IQ_GLYPHS[id], k = radius / 24, t = (rotation || 0) * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+  return pts.map(([x, y]) => { const mx = mirror ? -x : x; return (cx + k * (mx * c - y * s)).toFixed(1) + ',' + (cy + k * (mx * s + y * c)).toFixed(1); }).join(' ');
+}
+
+// extra: { glyph, mirror, hollow } - the new kinds of change (reflection, filled <-> outline only)
+function iqRichShapeUnit(type, color, rotation, scale, size, extra){
+  extra = extra || {};
   const cx = size / 2, cy = size / 2;
   const sides = IQ_TYPE_SIDES[type];
   const outerR = size * 0.40 * scale, innerR = size * 0.23 * scale;
+  const innerFill = extra.hollow ? '#ffffff' : color, innerStroke = extra.hollow ? 3.4 : 2.5;
+  if (type === 'glyph'){
+    return '<polygon points="'+iqGlyphPoints(extra.glyph, rotation, extra.mirror, cx, cy, outerR)+'" fill="'+innerFill+'" stroke="'+color+'" stroke-width="'+(extra.hollow ? 3.4 : 2.5)+'" stroke-linejoin="round"/>';
+  }
   if (sides){
     const outerPts = iqPolygonPoints(cx, cy, outerR, sides, -90);
     const innerPts = iqPolygonPoints(cx, cy, innerR, sides, -90 + rotation);
     return '<polygon points="'+outerPts+'" fill="'+color+'" fill-opacity="0.14" stroke="'+color+'" stroke-width="3"/>'+
-      '<polygon points="'+innerPts+'" fill="'+color+'" stroke="'+color+'" stroke-width="2.5"/>';
+      '<polygon points="'+innerPts+'" fill="'+innerFill+'" stroke="'+color+'" stroke-width="'+innerStroke+'"/>';
   }
   const outer = '<circle cx="'+cx+'" cy="'+cy+'" r="'+outerR+'" fill="'+color+'" fill-opacity="0.14" stroke="'+color+'" stroke-width="3"/>';
+  if (extra.hollow && type === 'circle') return outer + '<circle cx="'+cx+'" cy="'+cy+'" r="'+innerR+'" fill="#ffffff" stroke="'+color+'" stroke-width="3.4"/>';
   const inner = '<g transform="rotate('+rotation+' '+cx+' '+cy+')">'+iqShapeMarkup(type, cx, cy, innerR, color)+'</g>';
   return outer + inner;
 }
@@ -140,7 +157,7 @@ function renderShapeSVG(spec){
 
   let inner = '';
   if (count <= 1){
-    inner = iqRichShapeUnit(type, color, rotation, scale, size);
+    inner = iqRichShapeUnit(type, color, rotation, scale, size, spec);
   } else {
     // Spacing must shrink as count grows, or shapes drift past the viewBox edges
     // and get silently clipped (invisible) - this keeps every copy on-screen.
@@ -159,7 +176,7 @@ function renderShapeSVG(spec){
     const startX = cx - (gap * (count - 1)) / 2;
     for (let i = 0; i < count; i++){
       const dx = (startX + i * gap - cx).toFixed(1);
-      inner += '<g transform="translate('+dx+' 0)">'+iqRichShapeUnit(type, color, rotation, unitScale, size)+'</g>';
+      inner += '<g transform="translate('+dx+' 0)">'+iqRichShapeUnit(type, color, rotation, unitScale, size, spec)+'</g>';
     }
   }
   if (spec.marker && count <= 1){
@@ -180,7 +197,8 @@ function renderShapeSVG(spec){
 function iqSpecsEqual(a, b){
   return a.type === b.type && a.color === b.color &&
     iqNormalizedRotation(a.type, a.rotation||0, a.marker) === iqNormalizedRotation(b.type, b.rotation||0, b.marker) &&
-    (a.scale||1) === (b.scale||1) && (a.count||1) === (b.count||1);
+    (a.scale||1) === (b.scale||1) && (a.count||1) === (b.count||1) &&
+    (a.glyph||'') === (b.glyph||'') && !!a.mirror === !!b.mirror && !!a.hollow === !!b.hollow;
 }
 
 /* ============ Composite multi-part figures (position-rearrangement questions) ============ */
